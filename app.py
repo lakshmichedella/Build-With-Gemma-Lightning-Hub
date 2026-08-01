@@ -5,7 +5,7 @@ import gradio as gr
 from db.seed import seed
 from ui.paramedic import paramedic_tab, refresh_patient_dropdown as refresh_paramedic_dropdown
 from ui.nurse import nurse_tab, refresh_patient_dropdown as refresh_nurse_dropdown
-from ui.doctor import doctor_tab, refresh_doctor_tab
+from ui.doctor import doctor_tab, refresh_queue as refresh_doctor_queue
 
 load_dotenv()
 seed()
@@ -38,6 +38,12 @@ CUSTOM_CSS = """
     color: #9ca3af; margin-bottom: 4px;
 }
 .mist-value { font-weight: 600; color: #f3f4f6; }
+.transparent-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
 """
 
 with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTOM_CSS) as demo:
@@ -59,7 +65,14 @@ with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTO
         with gr.Tab("👩‍⚕️ Nurse Review & ESI Triage") as nurse_tab_item:
             _, nurse_patient_dropdown = nurse_tab()
         with gr.Tab("👨‍⚕️ Doctor Queue & Execution") as doctor_tab_item:
-            _, doctor_queue_df, doctor_staff_dropdown, doctor_dictation_dropdown = doctor_tab()
+            (
+                _,
+                doctor_queue_df,
+                doctor_queue_state,
+                doctor_action_group,
+                doctor_selection_header,
+                doctor_selected_encounter_state,
+            ) = doctor_tab()
     gr.Markdown("_Built with Gemma for Kaggle 'Build with Gemma: Triage in Light Speed' Hackathon. Demo data is synthetic._")
 
     # Dropdown/table values only evaluate once, at build time above —
@@ -69,8 +82,14 @@ with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTO
     paramedic_tab_item.select(refresh_paramedic_dropdown, outputs=paramedic_patient_dropdown)
     nurse_tab_item.select(refresh_nurse_dropdown, outputs=nurse_patient_dropdown)
     doctor_tab_item.select(
-        refresh_doctor_tab,
-        outputs=[doctor_queue_df, doctor_staff_dropdown, doctor_dictation_dropdown],
+        refresh_doctor_queue,
+        outputs=[
+            doctor_queue_df,
+            doctor_queue_state,
+            doctor_action_group,
+            doctor_selection_header,
+            doctor_selected_encounter_state,
+        ],
     )
 
 if __name__ == "__main__":

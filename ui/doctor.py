@@ -3,7 +3,13 @@ T16 (staffing assignment), T17 (dictation + coding), T18 (LASA check).
 
 T15's queue is pure read + refresh, no Gemma call. T17 reuses T6
 (transcribe_speech) and adds structure_dictation(). T18 is a standalone,
-stateless check with no patient/DB linkage.
+stateless check with no patient/DB linkage — its condition field is
+pre-filled from the selected patient's chief complaint but stays editable.
+
+All three action panels (staffing/dictation/LASA) stay hidden until a row
+with a valid (non-Pending) ESI score is selected in the queue table — a
+patient hasn't been triaged yet if esi_score is NULL, and there's nothing
+actionable to attach staffing/dictation/a safety check to until they have.
 """
 import json
 from datetime import datetime
@@ -17,6 +23,8 @@ from services.stt import transcribe_speech
 
 QUEUE_HEADERS = ["ESI", "Patient", "Chief Complaint", "Wait Time", "Assigned To"]
 STAFF_OPTIONS = ["Dr. Chen", "Dr. Patel", "Dr. Okafor", "Nurse Ramirez", "Nurse Coleman", "Unassigned"]
+
+NO_SELECTION_MESSAGE = "_Select a **triaged** patient (with an ESI score) from the queue above to take action._"
 
 
 def _wait_time(period_start_iso):
@@ -46,46 +54,66 @@ def _chief_complaint(structured_mist_json):
         return "Not yet triaged"
 
 
-def _queue_rows():
-    rows = []
-    for enc in db.get_active_queue():
-        esi = enc["esi_score"] if enc["esi_score"] is not None else "Pending"
-        rows.append([
-            esi,
+def _queue_data():
+    """Single DB query, returns (raw encounter list, display rows) in the
+    same order — the raw list backs a gr.State so a Dataframe row click can
+    be resolved back to a real encounter_id/esi_score, not just display
+    strings."""
+    encounters = db.get_active_queue()
+    rows = [
+        [
+            enc["esi_score"] if enc["esi_score"] is not None else "Pending",
             enc["patient_name"],
             _chief_complaint(enc["structured_mist"]),
             _wait_time(enc["period_start"]),
             enc["assigned_to"] or "Unassigned",
-        ])
-    return rows
+        ]
+        for enc in encounters
+    ]
+    return encounters, rows
 
 
 def refresh_queue():
-    return _queue_rows()
+    """Re-queries the queue and clears any active row selection — row
+    indices may no longer point at the same patients after a refresh, so
+    keeping a stale selection open risks acting on the wrong patient."""
+    encounters, rows = _queue_data()
+    return rows, encounters, gr.update(visible=False), NO_SELECTION_MESSAGE, None
 
 
-def _encounter_choices():
-    return [
-        (f"P{e['patient_id']:03d} - {e['patient_name']}", e["id"])
-        for e in db.list_active_encounters()
-    ]
+def _on_queue_select(evt: gr.SelectData, encounters):
+    """Gates all three action panels behind a valid ESI score. Also clears
+    any leftover dictation/note/LASA fields from whichever patient was
+    selected before — without this, switching the selected row and
+    clicking "Structure Note" without re-dictating would save the
+    previous patient's note into the newly selected patient's record
+    (same class of bug fixed earlier for the paramedic/dictation patient
+    dropdowns, which this replaces)."""
+    row_idx = evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
+    if not encounters or row_idx is None or row_idx >= len(encounters):
+        return gr.update(visible=False), NO_SELECTION_MESSAGE, None, None, "", "", "", "", ""
 
+    enc = encounters[row_idx]
+    if enc["esi_score"] is None:
+        message = (
+            f"⚠️ **{enc['patient_name']}** hasn't been triaged yet — no ESI score. "
+            "Select a triaged patient to take action."
+        )
+        return gr.update(visible=False), message, None, None, "", "", "", "", ""
 
-def refresh_doctor_tab():
-    """Wired to the Doctor tab's `select` event (app.py) — re-queries the
-    queue and both encounter dropdowns, same staleness fix as the other
-    two tabs (see ui/paramedic.py's refresh_patient_dropdown)."""
-    choices_update = gr.update(choices=_encounter_choices())
-    return _queue_rows(), choices_update, choices_update
+    header = f"**Selected:** P{enc['patient_id']:03d} - {enc['patient_name']} (ESI {enc['esi_score']})"
+    chief_complaint = _chief_complaint(enc["structured_mist"])
+    return gr.update(visible=True), header, enc["encounter_id"], None, "", "", "", chief_complaint, ""
 
 
 # ---- T16: staffing assignment (D2) ----
 
 def _assign_staff(encounter_id, staff_name):
     if encounter_id is None:
-        raise gr.Error("Select a patient first.")
+        raise gr.Error("Select a triaged patient first.")
     db.assign_staff(encounter_id, staff_name)
-    return _queue_rows()
+    encounters, rows = _queue_data()
+    return rows, encounters
 
 
 # ---- T17: doctor dictation + coding (D3) ----
@@ -99,19 +127,9 @@ def _on_dictation_audio(audio_path):
         raise gr.Error(f"Transcription failed: {e}")
 
 
-def _on_dictation_patient_select(_encounter_id):
-    """Clears any leftover transcript/note from a previous patient —
-    without this, switching patients here and clicking "Structure Note"
-    without re-dictating would save the previous patient's note into the
-    newly selected patient's encounter record. Wired to `.select()`, not
-    `.change()`, so it only fires on a genuine user pick (see
-    ui/paramedic.py's _on_patient_select for why that distinction matters)."""
-    return None, "", ""
-
-
 def _structure_note(encounter_id, transcript):
     if encounter_id is None:
-        raise gr.Error("Select a patient first.")
+        raise gr.Error("Select a triaged patient first.")
     if not transcript or not transcript.strip():
         raise gr.Error("Record or enter a dictation before structuring.")
     result = structure_dictation(transcript)
@@ -123,7 +141,7 @@ def _structure_note(encounter_id, transcript):
     return note_html
 
 
-# ---- T18: LASA safety check (E1, standalone) ----
+# ---- T18: LASA safety check (E1) ----
 
 def _run_lasa_check(drug, condition):
     if not drug or not condition:
@@ -140,51 +158,70 @@ def _run_lasa_check(drug, condition):
 
 def doctor_tab():
     with gr.Column() as tab:
-        gr.Markdown("## Doctor Queue")
-        refresh_btn = gr.Button("Refresh Queue", variant="primary")
+        gr.Markdown('<span class="section-header">👨‍⚕️ Doctor Queue</span>')
+        refresh_btn = gr.Button("🔄 Refresh Queue", variant="primary")
+
+        encounters, rows = _queue_data()
+        queue_state = gr.State(encounters)
         queue_df = gr.Dataframe(
             headers=QUEUE_HEADERS,
             datatype=["str", "str", "str", "str", "str"],
-            value=_queue_rows(),
+            value=rows,
         )
-        refresh_btn.click(refresh_queue, outputs=queue_df)
 
-        gr.Markdown("### Staffing Assignment")
-        with gr.Row():
-            staff_patient_dropdown = gr.Dropdown(choices=_encounter_choices(), label="Patient")
-            staff_dropdown = gr.Dropdown(choices=STAFF_OPTIONS, label="Assign to")
-            assign_btn = gr.Button("Assign")
+        selected_encounter_state = gr.State(None)
+        with gr.Column(elem_classes=["section-box"]):
+            selection_header = gr.Markdown(NO_SELECTION_MESSAGE)
+
+        with gr.Group(visible=False, elem_classes=["transparent-wrapper"]) as action_group:
+            with gr.Column(elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">🧑‍⚕️ Staffing Assignment</span>')
+                with gr.Row():
+                    staff_dropdown = gr.Dropdown(choices=STAFF_OPTIONS, label="Assign to")
+                    assign_btn = gr.Button("Assign", variant="primary")
+
+            with gr.Column(elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">🎙️ Doctor Dictation</span>')
+                with gr.Row():
+                    with gr.Column():
+                        dictation_audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Dictate assessment")
+                        dictation_transcript = gr.Textbox(label="Transcript (editable)", lines=3)
+                        dictation_audio.change(_on_dictation_audio, inputs=dictation_audio, outputs=dictation_transcript)
+                        structure_btn = gr.Button("Structure Note", variant="primary")
+                    with gr.Column():
+                        note_out = gr.HTML(label="Structured note + suggested code")
+
+            with gr.Column(elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">💊 LASA Safety Check</span> _(illustrative only — not for real clinical use)_')
+                with gr.Row():
+                    lasa_drug = gr.Textbox(label="Drug entered")
+                    lasa_condition = gr.Textbox(label="Patient condition (auto-filled from chief complaint, editable)")
+                    lasa_btn = gr.Button("Check", variant="primary")
+                lasa_out = gr.HTML()
+
+        queue_df.select(
+            _on_queue_select,
+            inputs=[queue_state],
+            outputs=[
+                action_group, selection_header, selected_encounter_state,
+                dictation_audio, dictation_transcript, note_out,
+                lasa_drug, lasa_condition, lasa_out,
+            ],
+        )
+
+        refresh_btn.click(
+            refresh_queue,
+            outputs=[queue_df, queue_state, action_group, selection_header, selected_encounter_state],
+        )
+
         assign_btn.click(
-            _assign_staff, inputs=[staff_patient_dropdown, staff_dropdown], outputs=queue_df
+            _assign_staff, inputs=[selected_encounter_state, staff_dropdown], outputs=[queue_df, queue_state]
         )
 
-        gr.Markdown("### Doctor Dictation")
-        with gr.Row():
-            with gr.Column():
-                dictation_patient_dropdown = gr.Dropdown(choices=_encounter_choices(), label="Patient")
-                dictation_audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Dictate assessment")
-                dictation_transcript = gr.Textbox(label="Transcript (editable)", lines=3)
-                dictation_audio.change(_on_dictation_audio, inputs=dictation_audio, outputs=dictation_transcript)
-                structure_btn = gr.Button("Structure Note")
-            with gr.Column():
-                note_out = gr.HTML(label="Structured note + suggested code")
-        dictation_patient_dropdown.select(
-            _on_dictation_patient_select,
-            inputs=dictation_patient_dropdown,
-            outputs=[dictation_audio, dictation_transcript, note_out],
-        )
         structure_btn.click(
-            _structure_note,
-            inputs=[dictation_patient_dropdown, dictation_transcript],
-            outputs=note_out,
+            _structure_note, inputs=[selected_encounter_state, dictation_transcript], outputs=note_out
         )
 
-        gr.Markdown("### LASA Safety Check _(illustrative only — not for real clinical use)_")
-        with gr.Row():
-            lasa_drug = gr.Textbox(label="Drug entered")
-            lasa_condition = gr.Textbox(label="Patient condition")
-            lasa_btn = gr.Button("Check")
-        lasa_out = gr.HTML()
         lasa_btn.click(_run_lasa_check, inputs=[lasa_drug, lasa_condition], outputs=lasa_out)
 
-    return tab, queue_df, staff_patient_dropdown, dictation_patient_dropdown
+    return tab, queue_df, queue_state, action_group, selection_header, selected_encounter_state
