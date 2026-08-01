@@ -98,7 +98,17 @@ Given the time box, formal test suites are out of scope. Instead:
 
 ---
 
-## 9. What Not to Do
+## 9. Browser Testing (Puppeteer MCP)
+
+`.mcp.json` at the repo root configures a project-scoped Puppeteer MCP server (`@modelcontextprotocol/server-puppeteer`, via `npx`) for driving the Gradio UI in a real browser — clicking through tabs, filling the audio/image inputs, verifying what actually renders — rather than only calling tab callback functions directly in Python.
+
+- **First use requires approval.** Because `.mcp.json` is committed to the repo, Claude Code won't auto-launch it — run `/mcp` (or restart the session) and approve the `puppeteer` server before its tools are available.
+- Point it at the app after starting it locally (`python app.py`, default `http://127.0.0.1:7860`) per §3 above.
+- This is for interactive/manual verification, not a replacement for the direct-function testing pattern already used throughout this project (see §8) — keep using that for fast, repeatable checks; use Puppeteer when you specifically need to confirm real rendering/click behavior (e.g. the `.select()` vs `.change()` dropdown-clearing behavior noted in `ui/paramedic.py` and `ui/doctor.py`).
+
+---
+
+## 10. What Not to Do
 
 - Don't add authentication, multi-user session handling, or role-based access — out of scope per `.steering/requirements.md` §6.
 - Don't build real STT/vision services beyond what's specified (open-source Whisper for STT, **PaliGemma** for simple 3-word image tags) — no bounding boxes, no cloud vision APIs.
