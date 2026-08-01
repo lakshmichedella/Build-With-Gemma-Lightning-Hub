@@ -63,3 +63,5 @@ Use these 5 clinical handover scenarios during judging or live testing. Each sce
 
 3. **Doctor Queue Tab**:
    - Click **Refresh Live Queue** to see the patient ranked by ESI level.
+   - For bedside dictation and ICD-10 coding, use the corresponding sample doctor's notes in [`SAMPLE_DOCTOR_NOTES.md`](file:///Users/moz/projects/spur-gemma-hackathon/Build-With-Gemma-Lightning-Hub/SAMPLE_DOCTOR_NOTES.md).
+
