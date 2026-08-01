@@ -1,0 +1,7 @@
+gradio>=4.0.0
+google-generativeai
+openai-whisper
+python-dotenv
+pandas
+pillow
+numpy
