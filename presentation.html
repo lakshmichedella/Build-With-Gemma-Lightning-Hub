@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ER Handover Triage — Gemma Lightning Presentation</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --border-card: rgba(255, 255, 255, 0.12);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.35);
+            --secondary: #818cf8;
+            --accent: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --font-head: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        /* Animated Background Gradients */
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.5;
+            animation: floatGlow 12s infinite alternate ease-in-out;
+        }
+
+        .bg-glow-1 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, #0284c7, transparent);
+            top: -100px;
+            left: -100px;
+        }
+
+        .bg-glow-2 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, #4f46e5, transparent);
+            bottom: -150px;
+            right: -150px;
+            animation-delay: -6s;
+        }
+
+        @keyframes floatGlow {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(40px, 30px) scale(1.1); }
+        }
+
+        /* Top Progress Bar */
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            position: relative;
+            z-index: 10;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 20%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 12px var(--primary);
+        }
+
+        /* Header Bar */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 40px;
+            position: relative;
+            z-index: 10;
+            background: rgba(9, 13, 22, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-card);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #0284c7, #4f46e5);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 15px rgba(2, 132, 199, 0.4);
+        }
+
+        .logo-title {
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--text-main);
+        }
+
+        .slide-counter {
+            font-family: var(--font-head);
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Slide Deck Workspace */
+        .deck-container {
+            flex: 1;
+            position: relative;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 40px;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            max-width: 1200px;
+            height: 100%;
+            max-height: 640px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px) scale(0.98);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Glass Cards */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-card);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        }
+
+        /* Slide Typography */
+        h1 {
+            font-family: var(--font-head);
+            font-size: 3.2rem;
+            font-weight: 800;
+            line-height: 1.15;
+            background: linear-gradient(135deg, #ffffff 30%, var(--primary) 70%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 16px;
+        }
+
+        h2 {
+            font-family: var(--font-head);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        p.subtitle {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 28px;
+            max-width: 800px;
+        }
+
+        /* Grid Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        /* Hero Slide 1 Specifics */
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--primary);
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .hero-features {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .hero-feat-item {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px 20px;
+            border-radius: 14px;
+            flex: 1;
+            transition: all 0.3s ease;
+        }
+
+        .hero-feat-item:hover {
+            background: rgba(56, 189, 248, 0.08);
+            border-color: rgba(56, 189, 248, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .hero-feat-icon {
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+        }
+
+        .hero-feat-title {
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-main);
+        }
+
+        /* Journey Timeline (Slide 3) */
+        .journey-step {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .journey-step:hover {
+            border-color: var(--primary);
+            box-shadow: 0 10px 25px var(--primary-glow);
+            transform: translateY(-4px);
+        }
+
+        .journey-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            font-family: var(--font-head);
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .journey-title {
+            font-family: var(--font-head);
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+
+        .journey-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .journey-tag {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Chain of Verification (Slide 4) */
+        .cov-step {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--primary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .cov-step-1 { border-left-color: var(--danger); }
+        .cov-step-2 { border-left-color: var(--secondary); }
+        .cov-step-3 { border-left-color: var(--warning); }
+        .cov-step-4 { border-left-color: var(--accent); }
+
+        .cov-step-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .cov-step-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Use Cases Cards (Slide 5) */
+        .case-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .case-card.active, .case-card:hover {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-3px);
+        }
+
+        .case-esi {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+        }
+
+        .esi-1 { background: #ef4444; color: white; }
+        .esi-2 { background: #f97316; color: white; }
+        .esi-3 { background: #eab308; color: black; }
+        .esi-4 { background: #3b82f6; color: white; }
+        .esi-5 { background: #22c55e; color: white; }
+
+        .case-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        .case-detail-box {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 16px;
+            min-height: 220px;
+        }
+
+        /* Footer Controls */
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 40px;
+            position: relative;
+            z-index: 10;
+            background: rgba(9, 13, 22, 0.6);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border-card);
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-main);
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-family: var(--font-head);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #0f172a;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .nav-btn.primary-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .nav-btn.primary-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--primary-glow);
+        }
+
+        .keyboard-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        kbd {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Top Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="logo-container">
+            <div class="logo-badge">Kaggle Build With Gemma</div>
+            <div class="logo-title">ER Handover Triage — Gemma Lightning</div>
+        </div>
+        <div class="slide-counter" id="slideCounter">Slide 1 / 6</div>
+    </header>
+
+    <!-- Slide Deck Workspace -->
+    <div class="deck-container">
+
+        <!-- SLIDE 1: Hero / Title -->
+        <div class="slide active" id="slide-1">
+            <div class="glass-card">
+                <div class="hero-badge">⚡ Healthcare Track — Triage in Light Speed</div>
+                <h1>ER Handover Triage<br>with Gemma Multimodal</h1>
+                <p class="subtitle">
+                    Reducing emergency room friction across the <b>Paramedic ➔ Nurse ➔ Doctor</b> handover chain with a single, evolving patient record.
+                </p>
+
+                <div class="hero-features">
+                    <div class="hero-feat-item">
+                        <div class="hero-feat-icon">🚑</div>
+                        <div class="hero-feat-title">10-Sec Handover</div>
+                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Dictation & photo ➔ MIST grid</p>
+                    </div>
+                    <div class="hero-feat-item">
+                        <div class="hero-feat-icon">🧠</div>
+                        <div class="hero-feat-title">ESI CoV Triager</div>
+                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">3-step Chain-of-Verification</p>
+                    </div>
+                    <div class="hero-feat-item">
+                        <div class="hero-feat-icon">📋</div>
+                        <div class="hero-feat-title">2-3 Visit Lookback</div>
+                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Automated history flags</p>
+                    </div>
+                    <div class="hero-feat-item">
+                        <div class="hero-feat-icon">👨‍⚕️</div>
+                        <div class="hero-feat-title">Acuity Queue</div>
+                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Ranked queue & ICD-10 coding</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: The Clinical Crisis -->
+        <div class="slide" id="slide-2">
+            <div class="glass-card">
+                <h2>The Clinical Friction in ER Handovers</h2>
+                <p class="subtitle">Handing over critical patients under high stress leads to lost details, delayed triage, and miscommunicated history.</p>
+
+                <div class="grid-2" style="margin-top:20px;">
+                    <div style="background:rgba(239, 68, 68, 0.08); border:1px solid rgba(239, 68, 68, 0.2); border-radius:16px; padding:24px;">
+                        <h3 style="color:#f87171; font-family:var(--font-head); margin-bottom:12px; font-size:1.2rem;">❌ Traditional ER Handover Friction</h3>
+                        <ul style="color:var(--text-muted); line-height:1.8; font-size:0.95rem; padding-left:20px;">
+                            <li>Chaotic verbal dictation during ambulance transport.</li>
+                            <li>Nurses manually re-type symptoms while assessing patients.</li>
+                            <li>Past medical history & severe allergies get overlooked.</li>
+                            <li>Doctors inherit incomplete notes without prioritized acuity rankings.</li>
+                        </ul>
+                    </div>
+
+                    <div style="background:rgba(52, 211, 153, 0.08); border:1px solid rgba(52, 211, 153, 0.2); border-radius:16px; padding:24px;">
+                        <h3 style="color:#34d399; font-family:var(--font-head); margin-bottom:12px; font-size:1.2rem;">⚡ Gemma Lightning Hub Solution</h3>
+                        <ul style="color:var(--text-muted); line-height:1.8; font-size:0.95rem; padding-left:20px;">
+                            <li><b>Voice + Multimodal Vision:</b> Dictation & injury photo auto-structured in seconds.</li>
+                            <li><b>FHIR-Lite Persistence:</b> Single SQLite record updated across all personas.</li>
+                            <li><b>Visible ESI Reasoning:</b> 3-step Chain-of-Verification prevents over/under-triage.</li>
+                            <li><b>Ranked Doctor Queue:</b> Live acuity ranking with ICD-10 billing coding.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: Continuous Patient Journey -->
+        <div class="slide" id="slide-3">
+            <div class="glass-card">
+                <h2>One Continuous Patient Journey</h2>
+                <p class="subtitle">A single shared patient record progressively enriched across three persona-tailored tabs.</p>
+
+                <div class="grid-3" style="margin-top:10px;">
+                    <div class="journey-step">
+                        <div class="journey-num">1</div>
+                        <div class="journey-title">🚑 Paramedic Intake</div>
+                        <p class="journey-desc">Dictate handover notes & snap injury photos hands-free. Gemma synthesizes raw speech into a standardized MIST grid (Mechanism, Injury, Signs, Treatment).</p>
+                        <span class="journey-tag">Multimodal Audio & Vision</span>
+                    </div>
+
+                    <div class="journey-step">
+                        <div class="journey-num">2</div>
+                        <div class="journey-title">🩺 Nurse Review</div>
+                        <p class="journey-desc">Extract medical entities, cross-reference 2–3 prior visits for high-risk flags, and execute visible 3-step ESI Chain-of-Verification triage.</p>
+                        <span class="journey-tag">ESI CoV & Lookback Audit</span>
+                    </div>
+
+                    <div class="journey-step">
+                        <div class="journey-num">3</div>
+                        <div class="journey-title">👨‍⚕️ Doctor Queue</div>
+                        <p class="journey-desc">View live patient queue automatically sorted by ESI acuity. Assign clinical staff and dictate bedside assessment with suggested ICD-10 codes.</p>
+                        <span class="journey-tag">Acuity Queue & ICD-10 Coding</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: Gemma Reasoning & Safety -->
+        <div class="slide" id="slide-4">
+            <div class="glass-card">
+                <h2>Gemma Reasoning Engine & Safety</h2>
+                <p class="subtitle">Ensuring clinical decision support is transparent, verifiable, and safety-audited.</p>
+
+                <div class="grid-2">
+                    <div>
+                        <h3 style="font-family:var(--font-head); font-size:1.2rem; color:var(--primary); margin-bottom:16px;">🧠 Chain-of-Verification (CoV) Triage</h3>
+                        
+                        <div class="cov-step cov-step-1">
+                            <div class="cov-step-title"><span>Step 1: Red Flag Extraction</span><span style="color:#ef4444;">Red Flags</span></div>
+                            <div class="cov-step-desc">Identifies compromised vitals, hemodynamic instability, or trauma alerts.</div>
+                        </div>
+
+                        <div class="cov-step cov-step-2">
+                            <div class="cov-step-title"><span>Step 2: Preliminary ESI Score</span><span style="color:#818cf8;">Score 1-5</span></div>
+                            <div class="cov-step-desc">Proposes initial ESI level based on expected ED resource utilization.</div>
+                        </div>
+
+                        <div class="cov-step cov-step-3">
+                            <div class="cov-step-title"><span>Step 3: Self-Critique Guardrails</span><span style="color:#fbbf24;">Audit</span></div>
+                            <div class="cov-step-desc">Critiques preliminary score against over-triage and under-triage clinical traps.</div>
+                        </div>
+
+                        <div class="cov-step cov-step-4">
+                            <div class="cov-step-title"><span>Final Output: Verified ESI Badge</span><span style="color:#34d399;">Final Badge</span></div>
+                            <div class="cov-step-desc">Provides final ESI score with a concise 1-sentence rationale saved to SQLite.</div>
+                        </div>
+                    </div>
+
+                    <div style="background:rgba(30, 41, 59, 0.4); border:1px solid rgba(255, 255, 255, 0.1); border-radius:16px; padding:24px;">
+                        <h3 style="font-family:var(--font-head); font-size:1.2rem; color:var(--secondary); margin-bottom:16px;">⚙️ Multimodal Stack Architecture</h3>
+                        <ul style="color:var(--text-muted); line-height:2; font-size:0.9rem; list-style:none;">
+                            <li>🎙️ <b>Speech-to-Text:</b> Native Gemini Flash Audio Multimodal STT</li>
+                            <li>📷 <b>Visual Tagging:</b> Concise 3-word injury tag extraction</li>
+                            <li>📊 <b>MIST Synthesis:</b> Standardized clinical JSON structuring</li>
+                            <li>🔍 <b>Entity Extractor:</b> Categorized Symptoms, Vitals & Meds</li>
+                            <li>📋 <b>Lookback Audit:</b> 2-3 prior visit history flag generator</li>
+                            <li>💾 <b>Persistence:</b> Thread-safe FHIR-lite SQLite database</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: 5 Scenario Use Cases -->
+        <div class="slide" id="slide-5">
+            <div class="glass-card">
+                <h2>5 End-to-End Clinical Scenarios</h2>
+                <p class="subtitle">Click any scenario below to view the aligned paramedic handover, nurse triage, and doctor coding.</p>
+
+                <div class="grid-5">
+                    <div class="case-card active" onclick="showScenario(0)">
+                        <span class="case-esi esi-1">ESI Level 1</span>
+                        <div class="case-title">Acute STEMI</div>
+                    </div>
+                    <div class="case-card" onclick="showScenario(1)">
+                        <span class="case-esi esi-2">ESI Level 2</span>
+                        <div class="case-title">Severe Asthma</div>
+                    </div>
+                    <div class="case-card" onclick="showScenario(2)">
+                        <span class="case-esi esi-3">ESI Level 3</span>
+                        <div class="case-title">Appendicitis</div>
+                    </div>
+                    <div class="case-card" onclick="showScenario(3)">
+                        <span class="case-esi esi-4">ESI Level 4</span>
+                        <div class="case-title">Wrist Trauma</div>
+                    </div>
+                    <div class="case-card" onclick="showScenario(4)">
+                        <span class="case-esi esi-5">ESI Level 5</span>
+                        <div class="case-title">Rx Refill</div>
+                    </div>
+                </div>
+
+                <div class="case-detail-box" id="caseDetailBox">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: Live Demo & Conclusion -->
+        <div class="slide" id="slide-6">
+            <div class="glass-card" style="text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <div class="hero-badge">⚡ Experience Gemma Lightning Live</div>
+                <h1 style="font-size:2.8rem;">Ready for the Live Demo</h1>
+                <p class="subtitle" style="margin:16px auto 32px auto;">
+                    Open the Gradio Web Application to test voice dictation, photo tagging, lookback audit, and ESI Chain-of-Verification live.
+                </p>
+
+                <div style="display:flex; gap:16px; margin-bottom:24px;">
+                    <a href="http://localhost:7860" target="_blank" style="text-decoration:none;">
+                        <button class="nav-btn primary-btn" style="padding:14px 32px; font-size:1.1rem;">
+                            🚀 Launch Gradio Web App (localhost:7860)
+                        </button>
+                    </a>
+                </div>
+
+                <div style="color:var(--text-muted); font-size:0.9rem; max-width:600px; line-height:1.6; background:rgba(255, 255, 255, 0.04); padding:16px; border-radius:12px; border:1px solid rgba(255, 255, 255, 0.08);">
+                    <b>Pitch Highlights for Judges:</b><br>
+                    • Single continuous patient record across 3 tabs<br>
+                    • Visible 3-step ESI Chain-of-Verification<br>
+                    • Multimodal Audio & Vision integration with Gemini Flash
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer Controls -->
+    <footer>
+        <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">← Previous</button>
+        <div class="keyboard-hint">Use <kbd>←</kbd> <kbd>→</kbd> arrow keys or <kbd>Space</kbd> to navigate</div>
+        <button class="nav-btn primary-btn" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+    </footer>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const progressBar = document.getElementById('progressBar');
+        const slideCounter = document.getElementById('slideCounter');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        let currentSlide = 0;
+
+        const scenarios = [
+            {
+                title: "Acute STEMI / Cardiac Event",
+                esi: "ESI Level 1 (Immediate Resuscitation)",
+                paramedic: "74-year-old male with sudden onset crushing substernal chest pain radiating to left arm. Diaphoretic, BP 88/54, HR 118, SpO2 90%. Administered Aspirin & 2L O2.",
+                nurse: "⚠️ RED FLAG: Hypotension (BP 88/54) + ST elevation signs. Lookback Flag: Known History of CAD & Hypertension.",
+                doctor: "Coded: I21.09 (Acute transmural myocardial infarction of anterior wall). Plan: Immediate Heparin, Ticagrelor & Cath Lab transfer."
+            },
+            {
+                title: "Severe Asthma Exacerbation",
+                esi: "ESI Level 2 (High Risk / Severe Distress)",
+                paramedic: "42-year-old female in severe respiratory distress, tripod position, 1-2 word speech. Wheezing throughout, SpO2 87%, HR 122. Nebulizer started.",
+                nurse: "⚠️ RED FLAG: Severe respiratory distress, SpO2 87% on room air. Lookback Flag: Prior admission for severe asthma exacerbation.",
+                doctor: "Coded: J45.901 (Unspecified asthma with acute exacerbation). Plan: IV Methylprednisolone, continuous duo-nebs, IV Magnesium, ICU Step-down."
+            },
+            {
+                title: "Acute Suspected Appendicitis",
+                esi: "ESI Level 3 (Multiple Resources Needed)",
+                paramedic: "26-year-old male presenting with 10h of progressive RLQ pain. Temp 101.6F, HR 94, positive McBurney's point tenderness. 18G IV established.",
+                nurse: "📋 History Flag: Prior visit for non-specific abdominal pain 6 months ago. ESI CoV: Requires labs, CT imaging & IV analgesia.",
+                doctor: "Coded: K35.80 (Unspecified acute appendicitis). Plan: STAT CT Abdomen/Pelvis, NPO, IV Morphine, pre-op Cefoxitin, Surgical Consult."
+            },
+            {
+                title: "Traumatic Wrist Injury",
+                esi: "ESI Level 4 (One Resource Needed)",
+                paramedic: "31-year-old female slipped on ice and fell onto outstretched hand. Localized snuffbox tenderness & swelling. Distal neurovascular intact. Splinted.",
+                nurse: "✅ No Red Flags. Single resource required (wrist X-ray). Lookback Flag: No relevant past surgical/trauma history.",
+                doctor: "Coded: S63.502A (Unspecified sprain of left wrist). Plan: Left wrist X-ray (no acute fracture), volar splint, NSAIDs, discharge."
+            },
+            {
+                title: "Routine Prescription Refill",
+                esi: "ESI Level 5 (No Resources / Non-Urgent)",
+                paramedic: "55-year-old male requesting routine refill for Metformin after running out 2 days ago. Stable chronic low back stiffness. Vitals completely normal.",
+                nurse: "✅ No acute red flags. Lookback Flag: Documented Type 2 Diabetes Mellitus & Metformin therapy.",
+                doctor: "Coded: Z76.0 (Issue of repeat prescription) / E11.9. Plan: Refilled Metformin 1000mg BID x90 days, diabetic diet counselling, PCP follow-up."
+            }
+        ];
+
+        function updateDeck() {
+            slides.forEach((slide, index) => {
+                slide.classList.toggle('active', index === currentSlide);
+            });
+
+            const progressPercentage = ((currentSlide + 1) / slides.length) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+            slideCounter.textContent = `Slide ${currentSlide + 1} / ${slides.length}`;
+
+            prevBtn.disabled = currentSlide === 0;
+            if (currentSlide === slides.length - 1) {
+                nextBtn.textContent = "Finish Presentation 🎉";
+            } else {
+                nextBtn.textContent = "Next →";
+            }
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            if (currentSlide < 0) currentSlide = 0;
+            if (currentSlide >= slides.length) currentSlide = slides.length - 1;
+            updateDeck();
+        }
+
+        function showScenario(index) {
+            const cards = document.querySelectorAll('.case-card');
+            cards.forEach((card, idx) => card.classList.toggle('active', idx === index));
+            
+            const data = scenarios[index];
+            const box = document.getElementById('caseDetailBox');
+            box.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">
+                    <h3 style="font-family:var(--font-head); color:var(--primary); font-size:1.25rem;">${data.title}</h3>
+                    <span style="font-weight:700; color:var(--accent); font-size:0.9rem;">${data.esi}</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; font-size:0.88rem; line-height:1.6;">
+                    <div style="background:rgba(30,41,59,0.6); padding:14px; border-radius:10px; border-left:3px solid var(--primary);">
+                        <strong style="color:var(--primary);">🚑 Paramedic Handover</strong>
+                        <p style="color:var(--text-muted); margin-top:6px;">${data.paramedic}</p>
+                    </div>
+                    <div style="background:rgba(30,41,59,0.6); padding:14px; border-radius:10px; border-left:3px solid var(--warning);">
+                        <strong style="color:var(--warning);">🩺 Nurse Audit & ESI</strong>
+                        <p style="color:var(--text-muted); margin-top:6px;">${data.nurse}</p>
+                    </div>
+                    <div style="background:rgba(30,41,59,0.6); padding:14px; border-radius:10px; border-left:3px solid var(--accent);">
+                        <strong style="color:var(--accent);">👨‍⚕️ Doctor Assessment</strong>
+                        <p style="color:var(--text-muted); margin-top:6px;">${data.doctor}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                changeSlide(1);
+            } else if (e.key === 'ArrowLeft') {
+                changeSlide(-1);
+            }
+        });
+
+        // Initialize
+        updateDeck();
+        showScenario(0);
+    </script>
+</body>
+</html>
