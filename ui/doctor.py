@@ -101,20 +101,26 @@ def refresh_queue():
     indices may no longer point at the same patients after a refresh, so
     keeping a stale selection open risks acting on the wrong patient."""
     encounters, rows = _queue_data()
-    return rows, encounters, gr.update(visible=False), NO_SELECTION_MESSAGE, None, ""
+    return (
+        rows, encounters, gr.update(visible=False), NO_SELECTION_MESSAGE, None, "",
+        "", gr.update(interactive=True),
+    )
 
 
 def _on_queue_select(evt: gr.SelectData, encounters):
     """Gates all three action panels behind a valid ESI score. Also clears
-    any leftover dictation/note/LASA fields from whichever patient was
-    selected before — without this, switching the selected row and
-    clicking "Structure Note" without re-dictating would save the
-    previous patient's note into the newly selected patient's record
-    (same class of bug fixed earlier for the paramedic/dictation patient
-    dropdowns, which this replaces)."""
+    any leftover dictation/note/LASA/assign-confirmation fields from
+    whichever patient was selected before — without this, switching the
+    selected row and clicking "Structure Note" without re-dictating would
+    save the previous patient's note into the newly selected patient's
+    record (same class of bug fixed earlier for the paramedic/dictation
+    patient dropdowns, which this replaces)."""
     row_idx = evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
     if not encounters or row_idx is None or row_idx >= len(encounters):
-        return gr.update(visible=False), NO_SELECTION_MESSAGE, None, "", None, "", "", "", "", ""
+        return (
+            gr.update(visible=False), NO_SELECTION_MESSAGE, None, "", "", gr.update(interactive=True),
+            None, "", "", "", "", "",
+        )
 
     enc = encounters[row_idx]
     if enc["esi_score"] is None:
@@ -122,12 +128,16 @@ def _on_queue_select(evt: gr.SelectData, encounters):
             f"⚠️ **{enc['patient_name']}** hasn't been triaged yet — no ESI score. "
             "Select a triaged patient to take action."
         )
-        return gr.update(visible=False), message, None, "", None, "", "", "", "", ""
+        return (
+            gr.update(visible=False), message, None, "", "", gr.update(interactive=True),
+            None, "", "", "", "", "",
+        )
 
     header = f"**Selected:** P{enc['patient_id']:03d} - {enc['patient_name']} (ESI {enc['esi_score']})"
     chief_complaint = _chief_complaint(enc["structured_mist"])
     return (
         gr.update(visible=True), header, enc["encounter_id"], _override_info_markdown(enc),
+        "", gr.update(interactive=True),
         None, "", "", "", chief_complaint, "",
     )
 
@@ -137,9 +147,24 @@ def _on_queue_select(evt: gr.SelectData, encounters):
 def _assign_staff(encounter_id, staff_name):
     if encounter_id is None:
         raise gr.Error("Select a triaged patient first.")
+    if not staff_name:
+        raise gr.Error("Select a staff member to assign.")
     db.assign_staff(encounter_id, staff_name)
     encounters, rows = _queue_data()
-    return rows, encounters
+    confirmation = (
+        '<div style="background:#bbf7d0;color:#065f46;padding:10px 14px;border-radius:6px;">'
+        f"<strong>✅ Assigned to {staff_name}</strong>"
+        "</div>"
+    )
+    return rows, encounters, confirmation, gr.update(interactive=False)
+
+
+def _reenable_assign_btn(*_args):
+    """Wired to staff_dropdown's `.select()` event (fires only on a
+    genuine user pick, same convention used for the patient dropdowns
+    elsewhere in this app) — re-enables the Assign button once a new
+    physician is chosen after a prior successful assignment."""
+    return gr.update(interactive=True)
 
 
 # ---- T17: doctor dictation + coding (D3) ----
@@ -209,6 +234,7 @@ def doctor_tab():
                 with gr.Row():
                     staff_dropdown = gr.Dropdown(choices=STAFF_OPTIONS, label="Assign to")
                     assign_btn = gr.Button("Assign", variant="primary")
+                assign_status_out = gr.HTML()
 
             with gr.Column(elem_classes=["section-box"]):
                 gr.Markdown('<span class="section-header">🎙️ Doctor Dictation</span>')
@@ -234,6 +260,7 @@ def doctor_tab():
             inputs=[queue_state],
             outputs=[
                 action_group, selection_header, selected_encounter_state, override_info_out,
+                assign_status_out, assign_btn,
                 dictation_audio, dictation_transcript, note_out,
                 lasa_drug, lasa_condition, lasa_out,
             ],
@@ -244,12 +271,16 @@ def doctor_tab():
             outputs=[
                 queue_df, queue_state, action_group, selection_header,
                 selected_encounter_state, override_info_out,
+                assign_status_out, assign_btn,
             ],
         )
 
         assign_btn.click(
-            _assign_staff, inputs=[selected_encounter_state, staff_dropdown], outputs=[queue_df, queue_state]
+            _assign_staff,
+            inputs=[selected_encounter_state, staff_dropdown],
+            outputs=[queue_df, queue_state, assign_status_out, assign_btn],
         )
+        staff_dropdown.select(_reenable_assign_btn, outputs=assign_btn)
 
         structure_btn.click(
             _structure_note, inputs=[selected_encounter_state, dictation_transcript], outputs=note_out
@@ -260,4 +291,5 @@ def doctor_tab():
     return (
         tab, queue_df, queue_state, action_group,
         selection_header, selected_encounter_state, override_info_out,
+        assign_status_out, assign_btn,
     )

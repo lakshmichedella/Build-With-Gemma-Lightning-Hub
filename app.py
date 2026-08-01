@@ -73,6 +73,8 @@ with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTO
                 doctor_selection_header,
                 doctor_selected_encounter_state,
                 doctor_override_info,
+                doctor_assign_status,
+                doctor_assign_btn,
             ) = doctor_tab()
     gr.Markdown("_Built with Gemma for Kaggle 'Build with Gemma: Triage in Light Speed' Hackathon. Demo data is synthetic._")
 
@@ -91,6 +93,8 @@ with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTO
             doctor_selection_header,
             doctor_selected_encounter_state,
             doctor_override_info,
+            doctor_assign_status,
+            doctor_assign_btn,
         ],
     )
 
