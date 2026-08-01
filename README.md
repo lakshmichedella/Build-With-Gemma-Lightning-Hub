@@ -4,10 +4,9 @@ emoji: ⚡
 colorFrom: blue
 colorTo: indigo
 sdk: gradio
-sdk_version: 4.44.0
 app_file: app.py
 pinned: false
-short_description: ER Handover Triage continuous patient record powered by Gemma
+short_description: ER Handover Triage powered by Gemma
 ---
 
 # 🚑 ER Handover Triage — Gemma Lightning Hub (Healthcare Track)
