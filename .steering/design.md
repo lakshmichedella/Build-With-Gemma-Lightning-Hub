@@ -1,0 +1,190 @@
+# Design — Component Breakdown & Traceability
+
+Companion to `requirements.md`. This document decomposes each user story into concrete build components (DB, backend/service functions, Gemma prompts, UI elements) so any team member can pick up a story and know exactly what to build and where it plugs in.
+
+---
+
+## 1. System Architecture (component inventory)
+
+### 1.1 Persistence layer (SQLite)
+
+| Component | File | Purpose |
+|---|---|---|
+| `schema.sql` | `/db/schema.sql` | `CREATE TABLE` statements for all 5 tables |
+| `seed.py` | `/db/seed.py` | Idempotent seed of 10 synthetic patients + history on startup |
+| `db.py` | `/db/db.py` | Connection helper + CRUD functions used by every tab |
+
+**Tables:** `patients`, `encounters`, `conditions`, `observations`, `allergies` (see requirements.md §4 for fields).
+
+### 1.2 Gemma & speech service layer
+
+One module, one function per distinct reasoning task — each is a standalone, independently testable prompt so components map 1:1 to user stories. `transcribe_speech` is the one non-Gemma function here (open-source Whisper, run locally, free).
+
+| Function | File | Input | Output |
+|---|---|---|---|
+| `transcribe_speech(audio_path)` | `/services/stt.py` | recorded/uploaded audio file | raw transcript string (open-source Whisper, `"base"` model, run locally — free, no API key) |
+| `tag_image(image)` | `/services/gemma_vision.py` | uploaded photo | 3-word visual tag string |
+| `synthesize_mist(raw_transcript, image_tag)` | `/services/gemma_intake.py` | raw text + optional tag | structured MIST JSON |
+| `extract_entities(structured_mist)` | `/services/gemma_nurse.py` | structured MIST JSON | entity list (symptoms/vitals/meds/allergies) |
+| `summarize_lookback(current, prior_encounters)` | `/services/gemma_nurse.py` | current complaint + 2–3 prior encounters | flag list or "no flags" |
+| `score_esi_cov(record, flags)` | `/services/gemma_nurse.py` | full record + red flags | `{red_flags, prelim_score, critique, final_score, rationale}` |
+| `structure_dictation(raw_transcript)` | `/services/gemma_doctor.py` | doctor's dictated note | structured note + suggested code |
+
+### 1.3 UI layer (Gradio)
+
+| Component | File | Tab |
+|---|---|---|
+| `paramedic_tab()` | `/ui/paramedic.py` | Paramedic |
+| `nurse_tab()` | `/ui/nurse.py` | Nurse |
+| `doctor_tab()` | `/ui/doctor.py` | Doctor |
+| `app.py` | `/app.py` | Assembles tabs, wires callbacks to db.py + services |
+
+---
+
+## 2. Traceability Matrix
+
+Maps every user story from `requirements.md` to the components that implement it. Use this table to assign ownership and to verify nothing is unbuilt at demo time.
+
+| Story | DB Table(s) | Backend / Service Function | Gemma Prompt Function | UI Element(s) | Status |
+|---|---|---|---|---|---|
+| **A1** Synthetic dataset | `patients`, `encounters`, `conditions`, `observations`, `allergies` | `seed.py` (idempotent seed) | — | — (no UI, startup only) | Not started |
+| **A2** Shared persistence | all 5 tables | `db.py` (`get_conn()`, `get_patient()`, `upsert_encounter()`, etc.) | — | — | Not started |
+| **B1** Voice dictation capture | `encounters.raw_transcript` | `db.py: create_encounter()` | `transcribe_speech()` (open-source Whisper, local, free) | `paramedic_tab`: Gradio `Audio` input → transcript `Textbox` (editable) | Not started |
+| **B2** Photo capture + tag | `encounters.image_tag` | `db.py: update_encounter_image_tag()` | `tag_image()` | `paramedic_tab`: `Image` upload + tag display `Label` | Not started |
+| **B3** MIST synthesis | `encounters.structured_mist` | `db.py: update_encounter_mist()` | `synthesize_mist()` | `paramedic_tab`: "Generate Handover" `Button` → color-coded `HTML`/`Dataframe` grid | Not started |
+| **C1** Entity extraction | reads `encounters.structured_mist` | — | `extract_entities()` | `nurse_tab`: entity list `Dataframe` | Not started |
+| **C2** Lookback flagging | reads `conditions`, `allergies`, `encounters` (last 2–3 by `patient_id`) | `db.py: get_recent_history(patient_id, n=3)` | `summarize_lookback()` | `nurse_tab`: flags panel `Markdown`/`HTML` (or "No flags" state) | Not started |
+| **C3** ESI + CoV | `encounters.esi_score`, `encounters.esi_rationale` | `db.py: update_encounter_esi()` | `score_esi_cov()` | `nurse_tab`: ESI score `Number`/badge + expandable CoV rationale `Accordion` | Not started |
+| **D1** Prioritized queue | `SELECT` across `patients` + `encounters` `ORDER BY esi_score` | `db.py: get_active_queue()` | — (pure SQL, no new Gemma call) | `doctor_tab`: ranked `Dataframe`, auto-refresh on tab load | Not started |
+| **D2** Staffing assignment *(stretch)* | new `encounters.assigned_to` column | `db.py: assign_staff(encounter_id, staff_name)` | — | `doctor_tab`: `Dropdown`/`Textbox` per row | Not started |
+| **D3** Dictation + coding *(stretch)* | `encounters.doctor_note`, `encounters.suggested_code` | `db.py: update_encounter_note()` | `transcribe_speech()` → `structure_dictation()` | `doctor_tab`: `Audio`/`Textbox` input → structured note + code display | Not started |
+| **E1** LASA safety buffer *(cut candidate)* | none (stateless check) | — | `check_lasa(drug, condition)` *(new, not yet in service layer)* | standalone `Textbox` ×2 + alert `HTML` | Not started |
+
+---
+
+## 3. UI Layout & Browser Considerations
+
+The app is a single Gradio `Blocks` app served over HTTP(S) in a normal browser — no native app, no separate frontend build. One page, three tabs (`gr.Tabs`), matching the three personas. No login/role-switching logic needed for the demo; anyone can click any tab.
+
+### 3.1 Page structure
+
+```
+app.py
+└─ gr.Blocks()
+   └─ gr.Tabs()
+      ├─ Tab: "Paramedic Intake"
+      ├─ Tab: "Nurse Review"
+      └─ Tab: "Doctor Queue"
+```
+
+### 3.2 Paramedic Intake tab layout
+
+```
+gr.Row()
+├─ gr.Column(scale=1)              # capture side
+│  ├─ gr.Dropdown  — select existing patient OR "New Patient"
+│  ├─ gr.Audio(sources=["microphone"])  — dictate observations
+│  ├─ gr.Textbox   — transcript (auto-filled, editable fallback if mic fails)
+│  ├─ gr.Image(sources=["upload","webcam"])  — injury photo (optional)
+│  └─ gr.Button("Generate Handover")
+└─ gr.Column(scale=1)              # output side
+   ├─ gr.Label     — image tag (e.g. "laceration, moderate bleeding")
+   └─ gr.HTML      — color-coded MIST grid (Mechanism/Injury/Signs/Treatment)
+```
+Side-by-side raw-input vs. structured-output is deliberate — it's the clearest way to show judges what Gemma is doing.
+
+### 3.3 Nurse Review tab layout
+
+```
+gr.Row()
+├─ gr.Dropdown  — select patient (pulls from active encounters)
+└─ gr.Button("Load Patient")
+
+gr.Row()
+├─ gr.Column — MIST summary (read-only, from B3)
+├─ gr.Column — gr.Dataframe: extracted entities (C1)
+└─ gr.Column — gr.Markdown: lookback flags (C2), or "No flags" state
+
+gr.Row()
+└─ gr.Accordion("ESI Reasoning (Chain-of-Verification)")
+   ├─ red flags (Step 1)
+   ├─ preliminary score (Step 2)
+   ├─ critique (Step 3)
+   └─ gr.Number / badge — final ESI score (C3)
+```
+The CoV steps are shown expanded-by-default during the demo — that visible reasoning trail is the single most "impressive" UI moment, don't bury it in a collapsed accordion when pitching.
+
+### 3.4 Doctor Queue tab layout
+
+```
+gr.Row()
+└─ gr.Button("Refresh Queue")   # re-runs get_active_queue() on click
+
+gr.Dataframe                    # D1: ranked by ESI, columns:
+                                 # [ESI | Patient | Chief Complaint | Wait Time | Assigned To]
+
+gr.Row() [stretch — D2]
+└─ per-row gr.Dropdown for staff assignment (or a simple modal-style Column that appears on row select)
+
+gr.Row() [stretch — D3]
+├─ gr.Audio — doctor dictation
+└─ gr.Textbox / gr.Label — structured note + suggested code
+```
+
+### 3.5 Browser-specific constraints to design around
+
+| Constraint | Why it matters | Mitigation |
+|---|---|---|
+| `gr.Audio(sources=["microphone"])` requires HTTPS or `localhost` | Browsers block `getUserMedia` on plain HTTP | HF Spaces serves HTTPS by default — confirm deployment target early, don't demo over local HTTP on a projector machine |
+| Mic/camera permission prompt is per-browser-session | First click on Paramedic tab will pop a permission dialog | Click through it once *before* judges arrive; note it in the demo script as a one-time step |
+| No native audio-to-text in vanilla Gradio `Audio` component | It captures an audio blob, not a transcript — Gradio has no built-in "transcription" toggle | Run the **open-source Whisper model locally** (free, no API key): `pip install openai-whisper` (or HF `transformers` ASR pipeline) → `whisper.load_model("base")` at app startup → a `transcribe_speech(audio_path)` function wired between `gr.Audio` and the transcript `Textbox`. Use `"tiny"` or `"base"` model size for hackathon speed (small download, fast CPU inference); `"small"`/`"medium"` are more accurate but slower to load and run |
+| Image upload via drag-drop or file picker, not camera-only | Demo machine may not have a usable webcam | `gr.Image(sources=["upload","webcam"])` — always include upload as a fallback |
+| Single shared browser tab, multiple personas | No auth/session isolation | Fine for demo; state lives in SQLite, not browser session, so switching tabs is safe (per A2) |
+| Judges likely view on a shared screen/projector | Small text, dense tables | Keep `Dataframe` column counts low (≤5) and font sizes default-or-larger; avoid nested accordions beyond one level |
+
+---
+
+## 4. Data Flow (per patient, end to end)
+
+```
+[Paramedic Tab]
+  Audio/Text in ──► raw_transcript ─┐
+  Image in ──► tag_image() ─────────┤
+                                     ▼
+                          encounters row created
+                                     │
+                          synthesize_mist() ──► structured_mist saved
+                                     │
+[Nurse Tab] (reads same encounter)  ▼
+  extract_entities(structured_mist) ──► entity list (display only)
+  get_recent_history() ──► summarize_lookback() ──► flags (display only)
+  score_esi_cov() ──► esi_score + esi_rationale saved
+                                     │
+[Doctor Tab] (reads all encounters) ▼
+  get_active_queue() ──► ranked Dataframe
+  [stretch] assign_staff() ──► assigned_to saved
+  [stretch] structure_dictation() ──► doctor_note + suggested_code saved
+```
+
+Every arrow into "saved" is a SQLite write; every tab load is a fresh SQLite read — no cross-tab in-memory state is passed directly, which keeps the three personas' views consistent by construction (per A2).
+
+---
+
+## 5. Ownership Suggestion (for team split)
+
+| Track | Stories | Suggested owner focus |
+|---|---|---|
+| Data foundation | A1, A2 | Schema, seed script, `db.py` — build first, unblocks everyone |
+| Intake pipeline | B1, B2, B3 | Gradio audio/image input + `gemma_intake.py`/`gemma_vision.py` |
+| Nurse reasoning | C1, C2, C3 | `gemma_nurse.py` (three prompt functions) + nurse tab UI |
+| Doctor queue | D1 (+ D2/D3 if time) | SQL query + doctor tab UI, then stretch dictation |
+
+---
+
+## 6. Definition of Done (per story)
+
+A story is demo-ready when:
+1. Its DB write path is confirmed by inspecting the SQLite row after the action.
+2. Its Gemma function returns sensible output on at least 2 of the 10 seeded patients.
+3. Its UI element updates without requiring an app restart.
+4. It survives being re-run on the same patient without creating duplicate/corrupt rows (idempotency check).
