@@ -216,6 +216,35 @@ def list_observations_for_encounter(encounter_id):
         conn.close()
 
 
+# ---- lookback (T11) ----
+
+def get_recent_history(patient_id, n=3):
+    """Last n finished encounters (excludes the current active one) plus
+    all known conditions/allergies for the patient — the join C2 needs."""
+    conn = get_conn()
+    try:
+        encounters = conn.execute(
+            """SELECT * FROM encounters
+               WHERE patient_id = ? AND status != 'active'
+               ORDER BY period_start DESC LIMIT ?""",
+            (patient_id, n),
+        ).fetchall()
+        conditions = conn.execute(
+            "SELECT * FROM conditions WHERE patient_id = ? ORDER BY recorded_date DESC",
+            (patient_id,),
+        ).fetchall()
+        allergies = conn.execute(
+            "SELECT * FROM allergies WHERE patient_id = ?", (patient_id,)
+        ).fetchall()
+        return {
+            "encounters": [dict(e) for e in encounters],
+            "conditions": [dict(c) for c in conditions],
+            "allergies": [dict(a) for a in allergies],
+        }
+    finally:
+        conn.close()
+
+
 # ---- allergies ----
 
 def create_allergy(patient_id, substance):

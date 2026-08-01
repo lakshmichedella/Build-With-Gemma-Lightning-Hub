@@ -32,3 +32,46 @@ def extract_entities(structured_mist):
     )
     data = json.loads(response.choices[0].message.content)
     return {field: data.get(field, []) for field in ENTITY_FIELDS}
+
+
+LOOKBACK_PROMPT_TEMPLATE = """A patient is presenting to the ER with this current complaint: {current_complaint}
+
+Their relevant history:
+Prior visits (date: chief complaint): {encounter_summaries}
+Known conditions: {conditions}
+Known allergies: {allergies}
+
+Flag anything from the history that is clinically relevant to the CURRENT complaint above —
+for example a repeat presentation of the same or a related issue, a relevant allergy, or a
+prior related condition. Ignore anything in the history that is unrelated to the current complaint.
+
+Return ONLY a JSON object with one key "flags": a list of short flag strings (one sentence each).
+If nothing in the history is relevant to the current complaint, return an empty list for "flags".
+"""
+
+
+def summarize_lookback(current_complaint, history):
+    """current_complaint: string. history: dict as returned by
+    db.get_recent_history() (encounters/conditions/allergies).
+    Returns a list of flag strings — an empty list means "no flags"."""
+    encounter_summaries = "; ".join(
+        f"{e['period_start'][:10]}: {e['raw_transcript'] or 'no notes'}"
+        for e in history.get("encounters", [])
+    ) or "none"
+    conditions = ", ".join(c["code"] for c in history.get("conditions", [])) or "none"
+    allergies = ", ".join(a["substance"] for a in history.get("allergies", [])) or "none"
+
+    prompt = LOOKBACK_PROMPT_TEMPLATE.format(
+        current_complaint=current_complaint,
+        encounter_summaries=encounter_summaries,
+        conditions=conditions,
+        allergies=allergies,
+    )
+    response = get_client().chat.completions.create(
+        model=TEXT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(response.choices[0].message.content)
+    flags = data.get("flags", [])
+    return flags if isinstance(flags, list) else []
