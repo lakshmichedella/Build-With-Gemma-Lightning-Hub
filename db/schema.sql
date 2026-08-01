@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS encounters (
     esi_rationale    TEXT,            -- C3: Chain-of-Verification output (JSON or text)
     assigned_to      TEXT,            -- D2 (stretch): staff member assigned
     doctor_note      TEXT,            -- D3 (stretch): structured dictated note
-    suggested_code   TEXT             -- D3 (stretch): suggested ICD-10-style code
+    suggested_code   TEXT,            -- D3 (stretch): suggested ICD-10-style code
+    esi_override_score   INTEGER,     -- nurse override of esi_score, per-encounter; AI's esi_score/esi_rationale stay untouched
+    esi_override_reason  TEXT         -- required justification for the override, dictated or typed
 );
 
 CREATE TABLE IF NOT EXISTS conditions (

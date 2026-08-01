@@ -54,6 +54,18 @@ def _chief_complaint(structured_mist_json):
         return "Not yet triaged"
 
 
+def _esi_display(enc):
+    """The effective score (nurse override if present, else the AI's),
+    marked so a doctor scanning the queue can tell at a glance which
+    numbers reflect nurse judgment rather than raw AI output — without
+    having to open every patient to find out."""
+    if enc["esi_score"] is None:
+        return "Pending"
+    if enc.get("esi_override_score") is not None:
+        return f"{enc['esi_override_score']} ⚠️ Overridden"
+    return enc["esi_score"]
+
+
 def _queue_data():
     """Single DB query, returns (raw encounter list, display rows) in the
     same order — the raw list backs a gr.State so a Dataframe row click can
@@ -62,7 +74,7 @@ def _queue_data():
     encounters = db.get_active_queue()
     rows = [
         [
-            enc["esi_score"] if enc["esi_score"] is not None else "Pending",
+            _esi_display(enc),
             enc["patient_name"],
             _chief_complaint(enc["structured_mist"]),
             _wait_time(enc["period_start"]),
@@ -73,12 +85,23 @@ def _queue_data():
     return encounters, rows
 
 
+def _override_info_markdown(enc):
+    if enc.get("esi_override_score") is None:
+        return "_No nurse override on this case — ESI reflects the AI's assessment as-is._"
+    return (
+        "**⚠️ Nurse Override**\n\n"
+        f"AI recommended: ESI {enc['esi_score']}\n\n"
+        f"Overridden to: ESI {enc['esi_override_score']}\n\n"
+        f"Justification: {enc['esi_override_reason']}"
+    )
+
+
 def refresh_queue():
     """Re-queries the queue and clears any active row selection — row
     indices may no longer point at the same patients after a refresh, so
     keeping a stale selection open risks acting on the wrong patient."""
     encounters, rows = _queue_data()
-    return rows, encounters, gr.update(visible=False), NO_SELECTION_MESSAGE, None
+    return rows, encounters, gr.update(visible=False), NO_SELECTION_MESSAGE, None, ""
 
 
 def _on_queue_select(evt: gr.SelectData, encounters):
@@ -91,7 +114,7 @@ def _on_queue_select(evt: gr.SelectData, encounters):
     dropdowns, which this replaces)."""
     row_idx = evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
     if not encounters or row_idx is None or row_idx >= len(encounters):
-        return gr.update(visible=False), NO_SELECTION_MESSAGE, None, None, "", "", "", "", ""
+        return gr.update(visible=False), NO_SELECTION_MESSAGE, None, "", None, "", "", "", "", ""
 
     enc = encounters[row_idx]
     if enc["esi_score"] is None:
@@ -99,11 +122,14 @@ def _on_queue_select(evt: gr.SelectData, encounters):
             f"⚠️ **{enc['patient_name']}** hasn't been triaged yet — no ESI score. "
             "Select a triaged patient to take action."
         )
-        return gr.update(visible=False), message, None, None, "", "", "", "", ""
+        return gr.update(visible=False), message, None, "", None, "", "", "", "", ""
 
     header = f"**Selected:** P{enc['patient_id']:03d} - {enc['patient_name']} (ESI {enc['esi_score']})"
     chief_complaint = _chief_complaint(enc["structured_mist"])
-    return gr.update(visible=True), header, enc["encounter_id"], None, "", "", "", chief_complaint, ""
+    return (
+        gr.update(visible=True), header, enc["encounter_id"], _override_info_markdown(enc),
+        None, "", "", "", chief_complaint, "",
+    )
 
 
 # ---- T16: staffing assignment (D2) ----
@@ -175,6 +201,10 @@ def doctor_tab():
 
         with gr.Group(visible=False, elem_classes=["transparent-wrapper"]) as action_group:
             with gr.Column(elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">⚠️ Nurse Override Status</span>')
+                override_info_out = gr.Markdown()
+
+            with gr.Column(elem_classes=["section-box"]):
                 gr.Markdown('<span class="section-header">🧑‍⚕️ Staffing Assignment</span>')
                 with gr.Row():
                     staff_dropdown = gr.Dropdown(choices=STAFF_OPTIONS, label="Assign to")
@@ -203,7 +233,7 @@ def doctor_tab():
             _on_queue_select,
             inputs=[queue_state],
             outputs=[
-                action_group, selection_header, selected_encounter_state,
+                action_group, selection_header, selected_encounter_state, override_info_out,
                 dictation_audio, dictation_transcript, note_out,
                 lasa_drug, lasa_condition, lasa_out,
             ],
@@ -211,7 +241,10 @@ def doctor_tab():
 
         refresh_btn.click(
             refresh_queue,
-            outputs=[queue_df, queue_state, action_group, selection_header, selected_encounter_state],
+            outputs=[
+                queue_df, queue_state, action_group, selection_header,
+                selected_encounter_state, override_info_out,
+            ],
         )
 
         assign_btn.click(
@@ -224,4 +257,7 @@ def doctor_tab():
 
         lasa_btn.click(_run_lasa_check, inputs=[lasa_drug, lasa_condition], outputs=lasa_out)
 
-    return tab, queue_df, queue_state, action_group, selection_header, selected_encounter_state
+    return (
+        tab, queue_df, queue_state, action_group,
+        selection_header, selected_encounter_state, override_info_out,
+    )

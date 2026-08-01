@@ -3,6 +3,11 @@
 Integrates T10 (extract_entities), T11 (summarize_lookback), T12
 (score_esi_cov) with the DB layer. Patient select, MIST summary, entity
 table, lookback flags, ESI reasoning (Chain-of-Verification) display.
+
+Also supports a nurse override of the AI's final ESI score, per-encounter,
+gated behind a required (dictated or typed) justification — reuses T6's
+transcribe_speech(), the same shared function already used by the
+Paramedic tab (B1) and Doctor dictation (D3).
 """
 import json
 
@@ -10,6 +15,9 @@ import gradio as gr
 
 from db import db
 from services.gemma_nurse import extract_entities, score_esi_cov, summarize_lookback
+from services.stt import transcribe_speech
+
+NO_PATIENT_LOADED_MESSAGE = "_Load a patient to see AI vs. override status._"
 
 
 def _patient_choices():
@@ -24,6 +32,15 @@ def refresh_patient_dropdown():
     wired to this tab's `select` event so a patient intake done in the
     Paramedic tab shows up here without an app restart."""
     return gr.update(choices=_patient_choices())
+
+
+def _on_patient_select(_patient_choice):
+    """Clears all displayed data (and the override inputs) when the
+    dropdown selection changes — without this, switching patients without
+    clicking "Load Patient" first would leave the previous patient's score
+    sitting in the override score/reason fields, and submitting an
+    override would silently apply to the wrong patient's encounter."""
+    return "", [], "", "", None, NO_PATIENT_LOADED_MESSAGE, None, ""
 
 
 def _mist_html(mist):
@@ -57,6 +74,16 @@ def _cov_markdown(esi):
         f"**Final score:** ESI {esi['final_score']} — {esi['rationale']}\n\n"
         f"**Resource recommendation:** {esi['resource_recommendation']}"
     )
+
+
+def _override_status_markdown(ai_score, override_score, override_reason):
+    if override_score is not None:
+        return (
+            f"**AI recommended:** ESI {ai_score}\n\n"
+            f"**Nurse override:** ESI {override_score}\n\n"
+            f"**Justification:** {override_reason}"
+        )
+    return f"**AI recommended:** ESI {ai_score} _(no override)_"
 
 
 def _cached_review(encounter, mist_snapshot):
@@ -133,17 +160,59 @@ def _load_patient(patient_id, force=False):
     else:
         entities, flags, esi = _compute_review(patient_id, encounter, mist, mist_snapshot)
 
+    # Re-fetch: a prior override (or one just submitted by _submit_override,
+    # which calls back into this function) lives in columns untouched by
+    # the AI scoring path above, so the `encounter` dict from the top of
+    # this function is already current — no extra query needed.
+    override_score = encounter.get("esi_override_score")
+    override_reason = encounter.get("esi_override_reason")
+    effective_score = override_score if override_score is not None else esi["final_score"]
+
     return (
         _mist_html(mist),
         _entities_rows(entities),
         _flags_markdown(flags),
         _cov_markdown(esi),
-        esi["final_score"],
+        effective_score,
+        _override_status_markdown(esi["final_score"], override_score, override_reason),
+        override_score if override_score is not None else esi["final_score"],
+        override_reason or "",
     )
 
 
 def _rerun_assessment(patient_id):
     return _load_patient(patient_id, force=True)
+
+
+def _on_override_audio(audio_path):
+    if not audio_path:
+        return gr.update()
+    try:
+        return transcribe_speech(audio_path)
+    except Exception as e:
+        raise gr.Error(f"Transcription failed: {e}")
+
+
+def _submit_override(patient_id, override_score, reason):
+    if patient_id is None:
+        raise gr.Error("Select a patient first.")
+    if override_score is None:
+        raise gr.Error("Enter the ESI score (1-5) to override to.")
+    override_score = int(override_score)
+    if not (1 <= override_score <= 5):
+        raise gr.Error("ESI score must be between 1 and 5.")
+    if not reason or not reason.strip():
+        raise gr.Error("Dictate or type a justification before overriding the score.")
+
+    active = [e for e in db.list_encounters_for_patient(patient_id) if e["status"] == "active"]
+    if not active:
+        raise gr.Error("No active encounter for this patient.")
+    encounter = active[0]
+    if encounter["esi_score"] is None:
+        raise gr.Error("Run the AI assessment (Load Patient) before overriding its score.")
+
+    db.override_esi(encounter["id"], override_score, reason.strip())
+    return _load_patient(patient_id)
 
 
 def nurse_tab():
@@ -170,14 +239,47 @@ def nurse_tab():
                 cov_out = gr.Markdown()
                 esi_out = gr.Number(label="Final ESI Score", interactive=False)
 
+        gr.Markdown("### Nurse Override")
+        override_status_out = gr.Markdown(NO_PATIENT_LOADED_MESSAGE)
+        with gr.Row():
+            with gr.Column():
+                override_score_input = gr.Number(label="Override to (1-5)", precision=0, minimum=1, maximum=5)
+                override_audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Dictate justification")
+                override_reason_box = gr.Textbox(label="Justification (dictated or typed, editable)", lines=2)
+                override_audio.change(_on_override_audio, inputs=override_audio, outputs=override_reason_box)
+                override_btn = gr.Button("Override Score", variant="primary")
+
+        patient_dropdown.select(
+            _on_patient_select,
+            inputs=patient_dropdown,
+            outputs=[
+                mist_out, entities_out, flags_out, cov_out, esi_out,
+                override_status_out, override_score_input, override_reason_box,
+            ],
+        )
+
         load_btn.click(
             _load_patient,
             inputs=patient_dropdown,
-            outputs=[mist_out, entities_out, flags_out, cov_out, esi_out],
+            outputs=[
+                mist_out, entities_out, flags_out, cov_out, esi_out,
+                override_status_out, override_score_input, override_reason_box,
+            ],
         )
         rerun_btn.click(
             _rerun_assessment,
             inputs=patient_dropdown,
-            outputs=[mist_out, entities_out, flags_out, cov_out, esi_out],
+            outputs=[
+                mist_out, entities_out, flags_out, cov_out, esi_out,
+                override_status_out, override_score_input, override_reason_box,
+            ],
+        )
+        override_btn.click(
+            _submit_override,
+            inputs=[patient_dropdown, override_score_input, override_reason_box],
+            outputs=[
+                mist_out, entities_out, flags_out, cov_out, esi_out,
+                override_status_out, override_score_input, override_reason_box,
+            ],
         )
     return tab, patient_dropdown

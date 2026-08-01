@@ -25,6 +25,8 @@ _ENCOUNTER_MIGRATIONS = {
     "assigned_to": "ALTER TABLE encounters ADD COLUMN assigned_to TEXT",
     "doctor_note": "ALTER TABLE encounters ADD COLUMN doctor_note TEXT",
     "suggested_code": "ALTER TABLE encounters ADD COLUMN suggested_code TEXT",
+    "esi_override_score": "ALTER TABLE encounters ADD COLUMN esi_override_score INTEGER",
+    "esi_override_reason": "ALTER TABLE encounters ADD COLUMN esi_override_reason TEXT",
 }
 
 
@@ -152,17 +154,22 @@ def list_active_encounters():
 
 def get_active_queue():
     """T14: all active-encounter patients ranked by ESI (1 = most urgent).
-    Unscored encounters (nurse hasn't triaged yet) sort to the bottom."""
+    Unscored encounters (nurse hasn't triaged yet) sort to the bottom.
+    Ranks by the *effective* score (nurse override if one exists, else
+    the AI's) — a nurse's override must actually change queue priority,
+    not just be a cosmetic label."""
     conn = get_conn()
     try:
         rows = conn.execute(
             """SELECT e.id AS encounter_id, e.patient_id, p.name AS patient_name,
                       e.esi_score, e.esi_rationale, e.structured_mist, e.period_start,
-                      e.assigned_to, e.doctor_note, e.suggested_code
+                      e.assigned_to, e.doctor_note, e.suggested_code,
+                      e.esi_override_score, e.esi_override_reason
                FROM encounters e JOIN patients p ON p.id = e.patient_id
                WHERE e.status = 'active'
                ORDER BY CASE WHEN e.esi_score IS NULL THEN 1 ELSE 0 END,
-                        e.esi_score ASC, e.period_start ASC"""
+                        COALESCE(e.esi_override_score, e.esi_score) ASC,
+                        e.period_start ASC"""
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
@@ -211,6 +218,23 @@ def update_encounter_esi(encounter_id, esi_score, esi_rationale):
         conn.execute(
             "UPDATE encounters SET esi_score = ?, esi_rationale = ? WHERE id = ?",
             (esi_score, esi_rationale, encounter_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def override_esi(encounter_id, override_score, reason):
+    """Nurse override of the AI's ESI score, per-encounter. Deliberately
+    separate from update_encounter_esi() / esi_score — the AI's own score
+    and rationale must stay untouched so both numbers (and why they
+    differ) remain visible, not overwritten by the override. No Gemma
+    call, same as assign_staff()."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE encounters SET esi_override_score = ?, esi_override_reason = ? WHERE id = ?",
+            (override_score, reason, encounter_id),
         )
         conn.commit()
     finally:
