@@ -11,6 +11,7 @@ MIST_FIELDS = [
     "treatment",
     "vitals",
     "interventions_given",
+    "allergies",
 ]
 
 PROMPT_TEMPLATE = """You are structuring a paramedic's dictated handover into a MIST grid for an ER nurse.
@@ -18,8 +19,9 @@ PROMPT_TEMPLATE = """You are structuring a paramedic's dictated handover into a 
 Raw transcript:
 {transcript}
 {image_section}
-Return ONLY a JSON object with exactly these keys: chief_complaint, mechanism, injury, signs, treatment, vitals, interventions_given.
+Return ONLY a JSON object with exactly these keys: chief_complaint, mechanism, injury, signs, treatment, vitals, interventions_given, allergies.
 Each value must be a short plain-text string (one sentence or short phrase).
+"allergies" should capture any allergy the paramedic mentions the patient has (e.g. "Penicillin allergy"), separately from signs/treatment.
 If the transcript doesn't mention a field, use "Not reported" for that field.
 """
 

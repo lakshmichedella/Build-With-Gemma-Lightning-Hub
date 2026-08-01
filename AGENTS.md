@@ -29,6 +29,16 @@ Context file for any AI coding agent (or human) working in this repository. Read
 
 ## 3. Setup & Run
 
+**System prerequisite:** `ffmpeg` must be on `PATH` — Whisper (T6, `services/stt.py`) shells out to it to decode audio, and there's no pip package that provides it. Without it, any transcription call fails with `FileNotFoundError: ffmpeg`.
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Debian/Ubuntu
+sudo apt-get install ffmpeg
+```
+
 ```bash
 pip install -r requirements.txt
 # copy .env.example to .env and fill in the Gemma API key/endpoint if required
