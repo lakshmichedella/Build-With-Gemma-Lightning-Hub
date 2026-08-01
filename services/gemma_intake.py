@@ -1,8 +1,6 @@
 """T8: handover synthesis into a structured MIST grid (B3)."""
 import json
 
-from google.genai import types
-
 from services.gemma_client import TEXT_MODEL, get_client
 
 MIST_FIELDS = [
@@ -31,10 +29,10 @@ def synthesize_mist(raw_transcript, image_tag=None):
     json.dumps()-ing it before writing to encounters.structured_mist."""
     image_section = f"\nVisual tag from an attached photo: {image_tag}\n" if image_tag else "\n"
     prompt = PROMPT_TEMPLATE.format(transcript=raw_transcript, image_section=image_section)
-    response = get_client().models.generate_content(
+    response = get_client().chat.completions.create(
         model=TEXT_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
     )
-    data = json.loads(response.text)
+    data = json.loads(response.choices[0].message.content)
     return {field: data.get(field, "Not reported") for field in MIST_FIELDS}

@@ -6,8 +6,6 @@ AGENTS.md's shared-component rule, extend rather than restructure.
 """
 import json
 
-from google.genai import types
-
 from services.gemma_client import TEXT_MODEL, get_client
 
 ENTITY_FIELDS = ["symptoms", "vitals", "medications", "allergies"]
@@ -27,10 +25,10 @@ def extract_entities(structured_mist):
     dict with ENTITY_FIELDS keys, each a list of short strings."""
     mist_json = json.dumps(structured_mist)
     prompt = ENTITY_PROMPT_TEMPLATE.format(mist_json=mist_json)
-    response = get_client().models.generate_content(
+    response = get_client().chat.completions.create(
         model=TEXT_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
     )
-    data = json.loads(response.text)
+    data = json.loads(response.choices[0].message.content)
     return {field: data.get(field, []) for field in ENTITY_FIELDS}

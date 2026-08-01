@@ -1,5 +1,5 @@
 gradio>=4.0.0
-google-genai
+openai
 openai-whisper
 python-dotenv
 pandas
