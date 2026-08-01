@@ -1,13 +1,24 @@
 import os
 
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "base")
+_whisper_model = None
+
+def _get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        import whisper
+        _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
+    return _whisper_model
+
 def transcribe_speech(audio_path: str) -> str:
     """
-    Transcribes audio file at audio_path into plain text string using Gemini or local Whisper fallback.
+    Transcribes audio file at audio_path into plain text string using Gemini Multimodal 
+    or a cached local Whisper fallback (from phase2 implementation).
     """
     if not audio_path or not os.path.exists(audio_path):
         return ""
     
-    # 1. Try Gemini Multimodal Audio STT first
+    # 1. Try Gemini Multimodal Audio STT first (Lightning Fast, no local deps)
     api_key = os.getenv("GEMMA_API_KEY") or os.getenv("GEMINI_API_KEY")
     if api_key:
         try:
@@ -46,16 +57,15 @@ def transcribe_speech(audio_path: str) -> str:
             if response and response.text:
                 return response.text.strip()
         except Exception as e:
-            print(f"Gemini Audio STT error: {e}")
+            print(f"Gemini Audio STT error: {e}. Falling back to local Whisper...")
 
-    # 2. Try Whisper local fallback if installed
+    # 2. Try Whisper local fallback (Cached Model from phase2)
     try:
-        import whisper
-        model = whisper.load_model("base")
+        model = _get_whisper_model()
         result = model.transcribe(audio_path)
         return result.get("text", "").strip()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Whisper STT error: {e}")
 
     return "[Audio recorded. Please type or edit transcript above if transcription failed.]"
 

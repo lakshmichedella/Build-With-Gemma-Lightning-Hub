@@ -95,14 +95,18 @@ def build_paramedic_tab():
 
     def on_audio_recorded(audio_path):
         if audio_path:
+            import time
             gr.Info("Transcribing audio...")
             yield "Transcribing audio... please wait. 🎙️"
+            time.sleep(0.2) # Allow Gradio to flush the yield to the frontend
             result = transcribe_speech(audio_path)
             yield result
         else:
             yield ""
 
-    audio_in.change(fn=on_audio_recorded, inputs=[audio_in], outputs=[transcript_box])
+    audio_in.stop_recording(fn=on_audio_recorded, inputs=[audio_in], outputs=[transcript_box])
+    audio_in.upload(fn=on_audio_recorded, inputs=[audio_in], outputs=[transcript_box])
+    audio_in.clear(fn=lambda: "", inputs=None, outputs=[transcript_box])
 
     def on_generate_handover(patient_sel, name, dob, gender, transcript, img_path):
         if not transcript or not transcript.strip():

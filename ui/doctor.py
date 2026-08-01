@@ -90,14 +90,18 @@ def build_doctor_tab():
 
     def on_audio_recorded(audio_path):
         if audio_path:
+            import time
             gr.Info("Transcribing audio...")
             yield "Transcribing audio... please wait. 🎙️"
+            time.sleep(0.2)
             result = transcribe_speech(audio_path)
             yield result
         else:
             yield ""
 
-    doc_audio.change(fn=on_audio_recorded, inputs=[doc_audio], outputs=[doc_transcript])
+    doc_audio.stop_recording(fn=on_audio_recorded, inputs=[doc_audio], outputs=[doc_transcript])
+    doc_audio.upload(fn=on_audio_recorded, inputs=[doc_audio], outputs=[doc_transcript])
+    doc_audio.clear(fn=lambda: "", inputs=None, outputs=[doc_transcript])
 
     def on_structure_note(enc_id, transcript):
         if not enc_id or not transcript or not transcript.strip():
