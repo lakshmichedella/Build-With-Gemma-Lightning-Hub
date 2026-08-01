@@ -52,7 +52,7 @@ As a paramedic, I want to dictate my observations and recommendations instead of
 **B2. Photo capture for visible injuries**
 As a paramedic, I want to attach a photo of a visible injury during handover, so the nurse has visual context without me describing it verbatim.
 - Simple image upload attached to the same encounter
-- Gemma (vision) returns a short visual tag (e.g., "laceration, moderate bleeding") — no bounding boxes, just a 3-word tag
+- **PaliGemma** returns a short visual tag (e.g., "laceration, moderate bleeding") — no bounding boxes, just a 3-word tag
 - Tag is stored alongside the encounter and can bump a priority flag
 - *Acceptance:* uploading a sample injury photo produces a visible tag attached to the patient record
 
@@ -136,7 +136,7 @@ As an ER clinician, I want a warning if my entered drug doesn't match the stated
 
 ## 6. Explicitly Out of Scope
 
-- Real STT/vision services (use browser/Gradio-native capture + lightweight tagging only)
+- Real STT/vision services (use browser/Gradio-native capture + **PaliGemma** local or API tagging only)
 - Bounding-box image analysis
 - True FHIR R4 compliance / FHIR server
 - Multi-user auth, production-grade concurrency handling

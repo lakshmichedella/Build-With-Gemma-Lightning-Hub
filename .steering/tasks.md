@@ -36,7 +36,7 @@ Agents own their task's implementation details — file names, internal structur
 | **T4** | 1 | Build idempotent startup seeding: inserts T3's data into the DB only if empty | Seed routine | T2, T3 | A1 | §1.1 |
 | **T5** | 1 | Build the app skeleton: 3-tab layout (Paramedic / Nurse / Doctor), wired to run seeding once at launch | Running (empty) app | T4 | — | §3.1 |
 | **T6** | 2 | Build speech-to-text: local open-source Whisper transcription (`tiny`/`base` model), free, no API key | Transcription function | T0 | B1 | §1.2, §3.5 |
-| **T7** | 2 | Build image tagging: vision call that returns a short visual tag for an uploaded photo | Image-tagging function | T0 | B2 | §1.2 |
+| **T7** | 2 | Build image tagging: **PaliGemma** vision call that returns a short visual tag for an uploaded photo | Image-tagging function | T0 | B2 | §1.2 |
 | **T8** | 2 | Build handover synthesis: raw transcript (+ optional image tag) → structured MIST fields | MIST synthesis function | T0 | B3 | §1.2 |
 | **T10** | 2 | Build entity extraction: structured MIST data → extracted symptoms/vitals/meds/allergies | Entity extraction function | T0 | C1 | §1.2 |
 | **T9** | 3 | Build the Paramedic tab: patient select, audio capture, transcript display, photo upload, "Generate Handover" action, structured MIST output — integrates T6, T7, T8 with the DB layer | Working Paramedic tab | T5, T6, T7, T8, T2 | B1, B2, B3 | §1.3, §3.2 |

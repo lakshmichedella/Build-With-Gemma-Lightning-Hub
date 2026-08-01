@@ -21,7 +21,7 @@ Context file for any AI coding agent (or human) working in this repository. Read
 
 - **UI + deployment:** Gradio (`Blocks` + `Tabs`), single-page, served over HTTP(S) in a normal browser
 - **Persistence:** SQLite — single file, no external DB server
-- **LLM reasoning:** Gemma (via whatever API/local inference path the team has configured — check `.env`/environment config before assuming)
+- **LLM reasoning:** Gemma (for text tasks) and **PaliGemma** (for image analysis/vision tasks, via whatever API/local inference path the team has configured — check `.env`/environment config before assuming)
 - **Speech-to-text:** local open-source Whisper (`tiny`/`base` model) — free, no API key, loaded once at startup
 - **Language:** Python throughout
 
@@ -91,7 +91,7 @@ Given the time box, formal test suites are out of scope. Instead:
 ## 9. What Not to Do
 
 - Don't add authentication, multi-user session handling, or role-based access — out of scope per `.steering/requirements.md` §6.
-- Don't build real STT/vision services beyond what's specified (open-source Whisper, simple 3-word image tags) — no bounding boxes, no cloud vision APIs.
+- Don't build real STT/vision services beyond what's specified (open-source Whisper for STT, **PaliGemma** for simple 3-word image tags) — no bounding boxes, no cloud vision APIs.
 - Don't pursue full FHIR R4 compliance or a real FHIR server.
 - Don't scope-creep into the LASA safety buffer (E1) or staffing/dictation stretch features (T16/T17) before the core three-tab flow (Phases 0–5) is fully working end to end.
 - Don't hold a long-lived SQLite connection across Gradio callback invocations — open/close per call, or guard with `check_same_thread=False`, to avoid "database is locked" errors under concurrent demo usage.
