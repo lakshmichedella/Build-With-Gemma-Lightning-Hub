@@ -34,6 +34,15 @@ def _patient_choices():
     return choices
 
 
+def refresh_patient_dropdown():
+    """Re-queries the DB for current patients. Wired to this tab's `select`
+    event in app.py so switching to this tab always shows patients created
+    elsewhere (e.g. via the Nurse tab), per AGENTS.md's "read fresh on every
+    tab load" rule — a plain `choices=` kwarg only evaluates once, at
+    app-build time."""
+    return gr.update(choices=_patient_choices())
+
+
 def _on_patient_change(patient_choice):
     is_new = patient_choice == NEW_PATIENT_VALUE
     return gr.update(visible=is_new), gr.update(visible=is_new), gr.update(visible=is_new)
@@ -149,4 +158,4 @@ def paramedic_tab():
             inputs=[patient_dropdown, new_name, new_birth_date, new_gender, transcript_box, tag_label],
             outputs=[mist_output, patient_dropdown],
         )
-    return tab
+    return tab, patient_dropdown

@@ -115,6 +115,40 @@ def list_encounters_for_patient(patient_id, limit=None):
         conn.close()
 
 
+def list_active_encounters():
+    """Active encounters joined with patient name — used by the nurse
+    tab's patient picker and as the base of T14's queue query."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT e.*, p.name AS patient_name
+               FROM encounters e JOIN patients p ON p.id = e.patient_id
+               WHERE e.status = 'active'
+               ORDER BY e.period_start ASC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_active_queue():
+    """T14: all active-encounter patients ranked by ESI (1 = most urgent).
+    Unscored encounters (nurse hasn't triaged yet) sort to the bottom."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT e.id AS encounter_id, e.patient_id, p.name AS patient_name,
+                      e.esi_score, e.esi_rationale, e.structured_mist, e.period_start
+               FROM encounters e JOIN patients p ON p.id = e.patient_id
+               WHERE e.status = 'active'
+               ORDER BY CASE WHEN e.esi_score IS NULL THEN 1 ELSE 0 END,
+                        e.esi_score ASC, e.period_start ASC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def update_encounter_transcript(encounter_id, raw_transcript):
     conn = get_conn()
     try:
