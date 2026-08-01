@@ -6,6 +6,10 @@ except ImportError:
     pass
 
 import gradio as gr
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+import spaces
+
 from db.seed import seed_database
 from ui.paramedic import build_paramedic_tab
 from ui.nurse import build_nurse_tab
@@ -14,6 +18,23 @@ from ui.doctor import build_doctor_tab
 # Ensure database is initialized & seeded on startup
 seed_database()
 
+# Dummy function to satisfy HF ZeroGPU initialization requirements
+@spaces.GPU
+def initialize_gpu():
+    pass
+
+initialize_gpu()
+
+# Initialize FastAPI server
+server = FastAPI()
+
+# Mount Presentation HTML directly on FastAPI
+@server.get("/presentation.html")
+def get_presentation():
+    with open("presentation.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
 def build_app():
     custom_css = """
     .gradio-container {
@@ -21,7 +42,7 @@ def build_app():
     }
     """
     
-    with gr.Blocks(title="ER Handover Triage — Gemma Lightning", css=custom_css, theme=gr.themes.Soft(primary_hue="sky")) as app:
+    with gr.Blocks(title="ER Handover Triage — Gemma Lightning", css=custom_css, theme=gr.themes.Soft(primary_hue="sky")) as app_blocks:
         gr.Markdown(
             """
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; padding-bottom: 12px; margin-bottom: 16px;">
@@ -29,11 +50,6 @@ def build_app():
                     <h1 style="margin:0; font-size:1.8rem; color:#38bdf8;">🏥 ER Handover Triage in Light Speed</h1>
                     <p style="margin:4px 0 0 0; color:#94a3b8; font-size:0.95rem;">Continuous Emergency Handover Chain (Paramedic ➔ Nurse ➔ Doctor) Powered by Gemma</p>
                 </div>
-                <a href="/file=presentation.html" target="_blank" style="text-decoration:none;">
-                    <button style="background:linear-gradient(135deg, #0284c7, #4f46e5); color:white; border:none; padding:10px 18px; border-radius:10px; font-weight:700; cursor:pointer; font-size:0.9rem; box-shadow:0 4px 12px rgba(2, 132, 199, 0.4);">
-                        📺 Launch Pitch Slide Deck
-                    </button>
-                </a>
             </div>
             """
         )
@@ -48,6 +64,9 @@ def build_app():
             with gr.TabItem("🩺 Doctor Queue & Execution", id="doctor_tab"):
                 build_doctor_tab()
                 
+            with gr.TabItem("📺 Pitch Deck Presentation", id="presentation_tab"):
+                gr.HTML('<iframe src="/presentation.html" width="100%" height="800px" style="border:none;"></iframe>')
+                
         gr.Markdown(
             """
             ---
@@ -55,9 +74,12 @@ def build_app():
             """
         )
         
-    return app
+    return app_blocks
+
+# In HF Spaces, they will hook onto `app` variable
+blocks = build_app()
+app = gr.mount_gradio_app(server, blocks, path="/")
 
 if __name__ == "__main__":
-    app = build_app()
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False, allowed_paths=["presentation.html", "sample_images"])
-
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
