@@ -16,6 +16,7 @@ import gradio as gr
 from db import db
 from services.gemma_nurse import extract_entities, score_esi_cov, summarize_lookback
 from services.stt import transcribe_speech
+from ui.mist_card import mist_card_html
 
 NO_PATIENT_LOADED_MESSAGE = "<em>Load a patient to see AI vs. override status.</em>"
 
@@ -41,15 +42,6 @@ def _on_patient_select(_patient_choice):
     sitting in the override score/reason fields, and submitting an
     override would silently apply to the wrong patient's encounter."""
     return "", [], "", "", None, NO_PATIENT_LOADED_MESSAGE, None, "", gr.update(interactive=True)
-
-
-def _mist_html(mist):
-    rows = "".join(
-        f'<tr><td style="padding:6px 10px;font-weight:600;white-space:nowrap;">'
-        f'{k.replace("_", " ").title()}</td><td style="padding:6px 10px;">{v}</td></tr>'
-        for k, v in mist.items()
-    )
-    return f'<table style="border-collapse:collapse;width:100%;">{rows}</table>'
 
 
 def _entities_rows(entities):
@@ -80,17 +72,21 @@ def _override_status_html(ai_score, override_score, override_reason):
     """A colored HTML card, not plain Markdown — matching the visual
     language already used for the LASA check's pass/fail result (green vs
     neutral colored div) so a committed override is unmistakably visible,
-    not just another line of gray text among several."""
+    not just another line of gray text among several. Uses the shared
+    .alert-success/.alert-neutral classes (app.py) rather than inline
+    styles — Gradio's own dark-theme CSS applies !important text colors
+    to nested elements that silently override a plain inline `color:`,
+    which is what made this unreadable before."""
     if override_score is not None:
         return (
-            '<div style="background:#bbf7d0;color:#065f46;padding:10px 14px;border-radius:6px;">'
+            '<div class="alert-success">'
             "<strong>✅ Override committed</strong><br>"
             f"AI recommended: ESI {ai_score} &nbsp;→&nbsp; Nurse override: ESI {override_score}<br>"
             f"<em>{override_reason}</em>"
             "</div>"
         )
     return (
-        '<div style="padding:10px 14px;color:#9ca3af;">'
+        '<div class="alert-neutral">'
         f"AI recommended: ESI {ai_score} <em>(no override)</em>"
         "</div>"
     )
@@ -189,7 +185,7 @@ def _load_patient(patient_id, force=False):
     override_btn_update = gr.update(interactive=override_score is None)
 
     return (
-        _mist_html(mist),
+        mist_card_html(mist, header="📋 Handover Summary"),
         _entities_rows(entities),
         _flags_markdown(flags),
         _cov_markdown(esi),

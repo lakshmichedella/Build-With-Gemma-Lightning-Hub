@@ -13,19 +13,9 @@ from db import db
 from services.gemma_intake import synthesize_mist
 from services.gemma_vision import tag_image
 from services.stt import transcribe_speech
+from ui.mist_card import mist_card_html
 
 NEW_PATIENT_VALUE = "__new__"
-
-FIELD_COLORS = {
-    "chief_complaint": "#fde68a",
-    "mechanism": "#bfdbfe",
-    "injury": "#fecaca",
-    "signs": "#fed7aa",
-    "treatment": "#bbf7d0",
-    "vitals": "#e9d5ff",
-    "interventions_given": "#a5f3fc",
-    "allergies": "#fca5a5",
-}
 
 
 def _patient_choices():
@@ -111,43 +101,6 @@ def _get_or_create_active_encounter(patient_id):
     )
 
 
-FIELD_LABELS = {
-    "chief_complaint": "Chief Complaint",
-    "mechanism": "Mechanism (M)",
-    "injury": "Injury / Findings (I)",
-    "signs": "Signs & Symptoms (S)",
-    "treatment": "Treatment Given (T)",
-    "vitals": "Extracted Vitals",
-    "interventions_given": "Interventions Given",
-    "allergies": "Allergies",
-}
-# Fields rendered full-width in the card grid; the rest pair up two-per-row
-# in the order MIST_FIELDS lists them, which already produces the intended
-# layout (chief complaint full-width, mechanism+injury paired, signs+
-# treatment paired, then vitals/interventions/allergies full-width) without
-# needing manual row math — CSS grid auto-flows around the "full" spans.
-FULL_WIDTH_FIELDS = {"chief_complaint", "vitals", "interventions_given", "allergies"}
-
-
-def _mist_html(mist, image_tag=None):
-    cards = "".join(
-        f'<div class="mist-card{" full" if field in FULL_WIDTH_FIELDS else ""}" '
-        f'style="border-left-color:{FIELD_COLORS.get(field, "#888")};">'
-        f'<div class="mist-label">{FIELD_LABELS.get(field, field.replace("_", " ").title())}</div>'
-        f'<div class="mist-value">{mist.get(field, "Not reported")}</div>'
-        f"</div>"
-        for field in FIELD_LABELS
-        if field in mist
-    )
-    tag_badge = f'<span class="mist-tag-badge">{image_tag}</span>' if image_tag else ""
-    header = (
-        '<div class="mist-header-row">'
-        '<span class="section-header">🚑 Structured MIST Handover Grid</span>'
-        f"{tag_badge}</div>"
-    )
-    return f'{header}<div class="mist-grid">{cards}</div>'
-
-
 def _on_generate(patient_choice, new_name, new_birth_date, new_gender, transcript, image_tag):
     if not transcript or not transcript.strip():
         raise gr.Error("Record or enter a transcript before generating a handover.")
@@ -162,7 +115,7 @@ def _on_generate(patient_choice, new_name, new_birth_date, new_gender, transcrip
     mist = synthesize_mist(transcript, image_tag or None)
     db.update_encounter_mist(encounter_id, json.dumps(mist))
 
-    return _mist_html(mist, image_tag), gr.update(choices=_patient_choices(), value=patient_id)
+    return mist_card_html(mist, image_tag), gr.update(choices=_patient_choices(), value=patient_id)
 
 
 def paramedic_tab():

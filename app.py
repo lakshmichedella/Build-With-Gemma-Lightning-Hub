@@ -44,6 +44,17 @@ CUSTOM_CSS = """
     box-shadow: none !important;
     padding: 0 !important;
 }
+/* Colored alert boxes (override/assign confirmations, LASA result). Text
+   color must be set on the box AND every descendant with !important —
+   Gradio's own dark-theme CSS applies its own !important text color to
+   nested elements, which silently wins over a plain inline `color:` on
+   just the outer div, producing unreadable near-invisible text. */
+.alert-success { background: #bbf7d0 !important; border-radius: 6px !important; padding: 12px 16px !important; }
+.alert-success, .alert-success * { color: #065f46 !important; }
+.alert-danger { background: #fca5a5 !important; border-radius: 6px !important; padding: 12px 16px !important; }
+.alert-danger, .alert-danger * { color: #7f1d1d !important; }
+.alert-neutral { background: #1a2030 !important; border-radius: 6px !important; padding: 12px 16px !important; }
+.alert-neutral, .alert-neutral * { color: #9ca3af !important; }
 """
 
 with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTOM_CSS) as demo:

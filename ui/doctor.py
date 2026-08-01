@@ -151,11 +151,7 @@ def _assign_staff(encounter_id, staff_name):
         raise gr.Error("Select a staff member to assign.")
     db.assign_staff(encounter_id, staff_name)
     encounters, rows = _queue_data()
-    confirmation = (
-        '<div style="background:#bbf7d0;color:#065f46;padding:10px 14px;border-radius:6px;">'
-        f"<strong>✅ Assigned to {staff_name}</strong>"
-        "</div>"
-    )
+    confirmation = f'<div class="alert-success"><strong>✅ Assigned to {staff_name}</strong></div>'
     return rows, encounters, confirmation, gr.update(interactive=False)
 
 
@@ -198,13 +194,9 @@ def _run_lasa_check(drug, condition):
     if not drug or not condition:
         raise gr.Error("Enter both a drug and a condition.")
     result = check_lasa(drug, condition)
-    color = "#fca5a5" if result["mismatch"] else "#bbf7d0"
+    alert_class = "alert-danger" if result["mismatch"] else "alert-success"
     label = "⚠️ Possible mismatch" if result["mismatch"] else "✅ No mismatch found"
-    return (
-        f'<div style="background:{color};padding:10px;border-radius:6px;">'
-        f'<strong>{label}</strong><br>{result["explanation"]}'
-        f"</div>"
-    )
+    return f'<div class="{alert_class}"><strong>{label}</strong><br>{result["explanation"]}</div>'
 
 
 def doctor_tab():
