@@ -57,7 +57,7 @@ CUSTOM_CSS = """
 .alert-neutral, .alert-neutral * { color: #9ca3af !important; }
 """
 
-with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTOM_CSS) as demo:
+with gr.Blocks(title="Lightning Hub Triage", theme=gr.themes.Default(), css=CUSTOM_CSS) as demo:
     # Force Gradio's native dark theme rather than hand-overriding component
     # backgrounds one-by-one — overriding only .gradio-container's background
     # (an earlier attempt) leaves every inner widget (Audio recorder, Image
@@ -68,7 +68,7 @@ with gr.Blocks(title="Lighting Hub Triage", theme=gr.themes.Default(), css=CUSTO
     # background overrides fighting the theme.
     demo.load(None, None, None, js="() => { document.body.classList.add('dark'); }")
 
-    gr.Markdown("# 🏥 Lighting Hub Triage")
+    gr.Markdown("# 🏥 Lightning Hub Triage")
     gr.Markdown("Continuous Emergency Handover Chain (Paramedic → Nurse → Doctor) — Powered by Gemma Models")
     with gr.Tabs():
         with gr.Tab("🚑 Paramedic Intake") as paramedic_tab_item:
