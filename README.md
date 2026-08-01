@@ -11,6 +11,8 @@ short_description: ER Handover Triage powered by Gemma
 
 # 🚑 ER Handover Triage — Gemma Lightning Hub (Healthcare Track)
 
+![Gemma Lightning Hub Thumbnail](thumbnail.jpg)
+
 **Build with Gemma Competition — Triage in Light Speed (Kaggle Hackathon)**
 
 Reducing friction in the Emergency Room handover chain (**Paramedic ➔ Nurse ➔ Doctor**) for critical patients using Gemma for scribing, structuring, lookback audit, ESI triage, and clinical coding — with a single continuous patient record.
