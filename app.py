@@ -5,7 +5,7 @@ import gradio as gr
 from db.seed import seed
 from ui.paramedic import paramedic_tab, refresh_patient_dropdown as refresh_paramedic_dropdown
 from ui.nurse import nurse_tab, refresh_patient_dropdown as refresh_nurse_dropdown
-from ui.doctor import doctor_tab
+from ui.doctor import doctor_tab, refresh_queue
 
 load_dotenv()
 seed()
@@ -17,14 +17,16 @@ with gr.Blocks(title="ER Handover Triage") as demo:
             _, paramedic_patient_dropdown = paramedic_tab()
         with gr.Tab("Nurse Review") as nurse_tab_item:
             _, nurse_patient_dropdown = nurse_tab()
-        with gr.Tab("Doctor Queue"):
-            doctor_tab()
+        with gr.Tab("Doctor Queue") as doctor_tab_item:
+            _, doctor_queue_df = doctor_tab()
 
-    # Dropdown `choices=` only evaluate once, at build time above — re-query
-    # the DB whenever a tab is opened so patients created in one tab show up
-    # in the others without an app restart (AGENTS.md §5).
+    # Dropdown/table values only evaluate once, at build time above —
+    # re-query the DB whenever a tab is opened so a change made in one tab
+    # (new patient, fresh triage) shows up in the others without an app
+    # restart (AGENTS.md §5).
     paramedic_tab_item.select(refresh_paramedic_dropdown, outputs=paramedic_patient_dropdown)
     nurse_tab_item.select(refresh_nurse_dropdown, outputs=nurse_patient_dropdown)
+    doctor_tab_item.select(refresh_queue, outputs=doctor_queue_df)
 
 if __name__ == "__main__":
     demo.launch()
