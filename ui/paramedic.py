@@ -29,7 +29,7 @@ FIELD_COLORS = {
 
 
 def _patient_choices():
-    choices = [(f"{p['name']} (#{p['id']})", p["id"]) for p in db.list_patients()]
+    choices = [(f"P{p['id']:03d} - {p['name']}", p["id"]) for p in db.list_patients()]
     choices.append(("+ New Patient", NEW_PATIENT_VALUE))
     return choices
 
@@ -111,14 +111,41 @@ def _get_or_create_active_encounter(patient_id):
     )
 
 
-def _mist_html(mist):
-    rows = "".join(
-        f'<tr><td style="background:{FIELD_COLORS.get(k, "#eee")};padding:6px 10px;'
-        f'font-weight:600;white-space:nowrap;">{k.replace("_", " ").title()}</td>'
-        f'<td style="padding:6px 10px;">{v}</td></tr>'
-        for k, v in mist.items()
+FIELD_LABELS = {
+    "chief_complaint": "Chief Complaint",
+    "mechanism": "Mechanism (M)",
+    "injury": "Injury / Findings (I)",
+    "signs": "Signs & Symptoms (S)",
+    "treatment": "Treatment Given (T)",
+    "vitals": "Extracted Vitals",
+    "interventions_given": "Interventions Given",
+    "allergies": "Allergies",
+}
+# Fields rendered full-width in the card grid; the rest pair up two-per-row
+# in the order MIST_FIELDS lists them, which already produces the intended
+# layout (chief complaint full-width, mechanism+injury paired, signs+
+# treatment paired, then vitals/interventions/allergies full-width) without
+# needing manual row math — CSS grid auto-flows around the "full" spans.
+FULL_WIDTH_FIELDS = {"chief_complaint", "vitals", "interventions_given", "allergies"}
+
+
+def _mist_html(mist, image_tag=None):
+    cards = "".join(
+        f'<div class="mist-card{" full" if field in FULL_WIDTH_FIELDS else ""}" '
+        f'style="border-left-color:{FIELD_COLORS.get(field, "#888")};">'
+        f'<div class="mist-label">{FIELD_LABELS.get(field, field.replace("_", " ").title())}</div>'
+        f'<div class="mist-value">{mist.get(field, "Not reported")}</div>'
+        f"</div>"
+        for field in FIELD_LABELS
+        if field in mist
     )
-    return f'<table style="border-collapse:collapse;width:100%;">{rows}</table>'
+    tag_badge = f'<span class="mist-tag-badge">{image_tag}</span>' if image_tag else ""
+    header = (
+        '<div class="mist-header-row">'
+        '<span class="section-header">🚑 Structured MIST Handover Grid</span>'
+        f"{tag_badge}</div>"
+    )
+    return f'{header}<div class="mist-grid">{cards}</div>'
 
 
 def _on_generate(patient_choice, new_name, new_birth_date, new_gender, transcript, image_tag):
@@ -135,16 +162,17 @@ def _on_generate(patient_choice, new_name, new_birth_date, new_gender, transcrip
     mist = synthesize_mist(transcript, image_tag or None)
     db.update_encounter_mist(encounter_id, json.dumps(mist))
 
-    return _mist_html(mist), gr.update(choices=_patient_choices(), value=patient_id)
+    return _mist_html(mist, image_tag), gr.update(choices=_patient_choices(), value=patient_id)
 
 
 def paramedic_tab():
     with gr.Column() as tab:
-        gr.Markdown("## Paramedic Intake")
+        gr.Markdown('<span class="section-header">🚑 Paramedic Intake Capture</span>')
         with gr.Row():
-            with gr.Column(scale=1):
+            with gr.Column(scale=1, elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">👤 Select Patient</span>')
                 patient_dropdown = gr.Dropdown(
-                    choices=_patient_choices(), label="Patient", value=None
+                    choices=_patient_choices(), show_label=False, value=None
                 )
                 new_name = gr.Textbox(label="New patient name", visible=False)
                 new_birth_date = gr.Textbox(
@@ -154,18 +182,29 @@ def paramedic_tab():
                     choices=["female", "male", "other"], label="Gender", visible=False
                 )
 
-                audio_in = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Dictate observations")
-                transcript_box = gr.Textbox(label="Transcript (editable)", lines=4)
+                with gr.Column(elem_classes=["section-box"]):
+                    gr.Markdown('<span class="section-header">🎵 Dictate Handover Note</span>')
+                    audio_in = gr.Audio(sources=["microphone", "upload"], type="filepath", show_label=False)
+
+                with gr.Column(elem_classes=["section-box"]):
+                    gr.Markdown('<span class="section-header">📝 Transcript (Auto-filled / Editable)</span>')
+                    transcript_box = gr.Textbox(show_label=False, lines=4)
                 audio_in.change(_on_audio, inputs=audio_in, outputs=transcript_box)
 
-                image_in = gr.Image(sources=["upload", "webcam"], type="filepath", label="Injury photo (optional)")
-                generate_btn = gr.Button("Generate Handover", variant="primary")
+                with gr.Column(elem_classes=["section-box"]):
+                    gr.Markdown('<span class="section-header">🖼️ Attach Injury Photo (Optional)</span>')
+                    image_in = gr.Image(sources=["upload", "webcam"], type="filepath", show_label=False)
 
-            with gr.Column(scale=1):
-                tag_label = gr.Label(label="Visual tag")
+                generate_btn = gr.Button("⚡ Generate & Save Handover", variant="primary")
+
+            with gr.Column(scale=1, elem_classes=["section-box"]):
+                gr.Markdown('<span class="section-header">📊 Gemma Structured Output</span>')
+                with gr.Column(elem_classes=["section-box"]):
+                    gr.Markdown('<span class="section-header">🖼️ Visual Image Tag</span>')
+                    tag_label = gr.Label(show_label=False)
                 image_in.change(_on_image, inputs=image_in, outputs=tag_label)
 
-                mist_output = gr.HTML(label="MIST grid")
+                mist_output = gr.HTML()
 
         patient_dropdown.select(
             _on_patient_select,

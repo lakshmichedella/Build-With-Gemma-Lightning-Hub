@@ -66,7 +66,7 @@ def refresh_queue():
 
 def _encounter_choices():
     return [
-        (f"{e['patient_name']} (#{e['patient_id']})", e["id"])
+        (f"P{e['patient_id']:03d} - {e['patient_name']}", e["id"])
         for e in db.list_active_encounters()
     ]
 

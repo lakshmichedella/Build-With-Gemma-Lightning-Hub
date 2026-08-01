@@ -14,7 +14,7 @@ from services.gemma_nurse import extract_entities, score_esi_cov, summarize_look
 
 def _patient_choices():
     return [
-        (f"{e['patient_name']} (#{e['patient_id']})", e["patient_id"])
+        (f"P{e['patient_id']:03d} - {e['patient_name']}", e["patient_id"])
         for e in db.list_active_encounters()
     ]
 
