@@ -8,6 +8,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Mermaid.js for Diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+        });
+    </script>
     
     <style>
         :root {
@@ -507,7 +514,7 @@
             <div class="logo-badge">Kaggle Build With Gemma</div>
             <div class="logo-title">ER Handover Triage — Gemma Lightning</div>
         </div>
-        <div class="slide-counter" id="slideCounter">Slide 1 / 6</div>
+        <div class="slide-counter" id="slideCounter">Slide 1 / 10</div>
     </header>
 
     <!-- Slide Deck Workspace -->
@@ -654,8 +661,53 @@
             </div>
         </div>
 
-        <!-- SLIDE 5: 5 Scenario Use Cases -->
+        <!-- SLIDE 5: Technical Architecture & Data Model -->
         <div class="slide" id="slide-5">
+            <div class="glass-card">
+                <h2>Technical Architecture & Data Model</h2>
+                <p class="subtitle">A lightweight, stateless Python backend designed for clinical resilience and rapid inference.</p>
+
+                <div class="grid-2">
+                    <div>
+                        <h3 style="font-family:var(--font-head); font-size:1.2rem; color:var(--primary); margin-bottom:16px;">🏛️ System Architecture</h3>
+                        <div style="background:rgba(30, 41, 59, 0.4); border:1px solid rgba(255, 255, 255, 0.1); border-radius:12px; padding:16px; margin-bottom:16px;">
+                            <h4 style="color:var(--text-main); margin-bottom:8px;">Gradio UI Layer</h4>
+                            <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.6;">Event-driven blocks (paramedic, nurse, doctor) triggering asynchronous Python callbacks.</p>
+                        </div>
+                        <div style="background:rgba(30, 41, 59, 0.4); border:1px solid rgba(255, 255, 255, 0.1); border-radius:12px; padding:16px; margin-bottom:16px;">
+                            <h4 style="color:var(--text-main); margin-bottom:8px;">Service Layer (Google GenAI)</h4>
+                            <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.6;">Stateless modules executing precise prompts against Gemini Flash (MIST synthesis, CoV scoring, ICD-10 coding).</p>
+                        </div>
+                        <div style="background:rgba(30, 41, 59, 0.4); border:1px solid rgba(255, 255, 255, 0.1); border-radius:12px; padding:16px;">
+                            <h4 style="color:var(--text-main); margin-bottom:8px;">Thread-Safe Persistence</h4>
+                            <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.6;">No long-lived DB connections. Fresh read/write per callback ensures UI tabs never drift out of sync.</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="font-family:var(--font-head); font-size:1.2rem; color:var(--secondary); margin-bottom:16px;">🗄️ Database Schema (FHIR R4-Lite)</h3>
+                        <div style="background:rgba(15, 23, 42, 0.6); border:1px solid rgba(255, 255, 255, 0.15); border-radius:16px; padding:20px; font-family:monospace; font-size:0.85rem; line-height:1.8; color:var(--text-muted);">
+                            <span style="color:#38bdf8; font-weight:700;">patients</span> { id, name, birthDate, gender }<br><br>
+                            
+                            <span style="color:#818cf8; font-weight:700;">encounters</span> {<br>
+                            &nbsp;&nbsp;id, patient_id, status,<br>
+                            &nbsp;&nbsp;raw_transcript, structured_mist, image_tag,<br>
+                            &nbsp;&nbsp;esi_score, esi_rationale, suggested_code<br>
+                            }<br><br>
+
+                            <span style="color:#34d399; font-weight:700;">conditions</span> { id, patient_id, code }<br><br>
+
+                            <span style="color:#fbbf24; font-weight:700;">allergies</span> { id, patient_id, substance }<br><br>
+                            
+                            <span style="color:#f87171; font-weight:700;">observations</span> { id, encounter_id, type, value }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: 5 Scenario Use Cases -->
+        <div class="slide" id="slide-6">
             <div class="glass-card">
                 <h2>5 End-to-End Clinical Scenarios</h2>
                 <p class="subtitle">Click any scenario below to view the aligned paramedic handover, nurse triage, and doctor coding.</p>
@@ -689,8 +741,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 6: Live Demo & Conclusion -->
-        <div class="slide" id="slide-6">
+        <!-- SLIDE 7: Live Demo & Conclusion -->
+        <div class="slide" id="slide-7">
             <div class="glass-card" style="text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                 <div class="hero-badge">⚡ Experience Gemma Lightning Live</div>
                 <h1 style="font-size:2.8rem;">Ready for the Live Demo</h1>
@@ -711,6 +763,170 @@
                     • Single continuous patient record across 3 tabs<br>
                     • Visible 3-step ESI Chain-of-Verification<br>
                     • Multimodal Audio & Vision integration with Gemini Flash
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8 (Addendum): System Architecture Diagram -->
+        <div class="slide" id="slide-8">
+            <div class="glass-card" style="text-align:center;">
+                <h2>Addendum A: System Architecture</h2>
+                <p class="subtitle" style="margin-bottom:12px;">Component interaction map between Client UI, Gemma Engine, and SQLite.</p>
+                <div style="background:rgba(15,23,42,0.8); border-radius:14px; padding:16px; overflow:auto; max-height:460px; border:1px solid rgba(255,255,255,0.1);">
+                    <pre class="mermaid">
+graph TD
+    subgraph Client UI [Gradio Frontend]
+        P[🚑 Paramedic Tab]
+        N[🩺 Nurse Tab]
+        D[👨‍⚕️ Doctor Tab]
+    end
+
+    subgraph Intelligence [Gemma Reasoning Engine - Google AI Studio]
+        STT[🎙️ Multimodal Audio STT]
+        VIS[📷 Multimodal Vision Tagging]
+        MIST[📊 MIST Synthesis]
+        EXT[🔍 Entity Extraction]
+        LOOK[📋 2-3 Visit Lookback Audit]
+        COV[🧠 ESI Chain-of-Verification]
+        DOC[📝 Assessment & ICD-10 Coding]
+    end
+
+    subgraph Data [Persistence Layer - Thread-Safe SQLite]
+        DB[(FHIR-lite Store: Patients, Encounters, Conditions, Allergies)]
+    end
+
+    P -->|Audio Note| STT
+    P -->|Injury Photo| VIS
+    STT & VIS -->|Transcript & Visual Tag| MIST
+    MIST -->|Structured JSON| DB
+
+    N -->|Fetch Encounters| DB
+    N -->|MIST Record| EXT
+    N -->|History + Current| LOOK
+    N -->|Current + Flags| COV
+    COV -->|ESI Score & Rationale| DB
+
+    D -->|SQL SELECT ORDER BY esi_score| DB
+    D -->|Dictated Note| DOC
+    DOC -->|ICD-10 Code & Plan| DB
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9 (Addendum): Clinical Sequence Diagram -->
+        <div class="slide" id="slide-9">
+            <div class="glass-card" style="text-align:center;">
+                <h2>Addendum B: Clinical Data Flow Sequence</h2>
+                <p class="subtitle" style="margin-bottom:12px;">Step-by-step patient lifecycle from paramedic intake to doctor execution.</p>
+                <div style="background:rgba(15,23,42,0.8); border-radius:14px; padding:16px; overflow:auto; max-height:460px; border:1px solid rgba(255,255,255,0.1);">
+                    <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Paramedic
+    actor Nurse
+    actor Doctor
+    participant UI as Gradio Frontend
+    participant Gemma as Gemma Reasoning Engine
+    participant DB as SQLite (FHIR-lite DB)
+
+    rect rgb(30, 41, 59)
+    Note over Paramedic, DB: Step 1: Paramedic Intake & MIST Synthesis
+    Paramedic->>UI: Dictate Handover Note & Upload Photo
+    UI->>Gemma: Transcribe Audio & Tag Image
+    Gemma-->>UI: Return Transcript & Visual Tag
+    UI->>Gemma: Synthesize MIST Grid
+    Gemma-->>UI: Return Structured MIST JSON
+    UI->>DB: INSERT into encounters
+    UI-->>Paramedic: Display MIST Grid
+    end
+
+    rect rgb(15, 23, 42)
+    Note over Nurse, DB: Step 2: Nurse Audit & ESI CoV
+    Nurse->>UI: Select Patient & Load Record
+    UI->>DB: SELECT recent encounters/history
+    DB-->>UI: Return Patient History
+    UI->>Gemma: Extract Entities & Lookback Flags
+    Gemma-->>UI: Return Entities & Flags
+    Nurse->>UI: Calculate ESI Score
+    UI->>Gemma: Run 3-Step ESI CoV
+    Gemma-->>UI: Return ESI Level (1-5) & Rationale
+    UI->>DB: UPDATE encounters ESI
+    UI-->>Nurse: Display ESI Badge
+    end
+
+    rect rgb(30, 58, 138)
+    Note over Doctor, DB: Step 3: Doctor Prioritized Queue
+    Doctor->>UI: Refresh Queue
+    UI->>DB: SELECT * ORDER BY esi_score ASC
+    DB-->>UI: Return Ranked Queue
+    Doctor->>UI: Select Patient & Dictate Note
+    UI->>Gemma: Structure Note & Code ICD-10
+    Gemma-->>UI: Return Plan & ICD-10 Code
+    UI->>DB: UPDATE encounters Doctor Note & Code
+    UI-->>Doctor: Display Coded Note
+    end
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10 (Addendum): ER Diagram -->
+        <div class="slide" id="slide-10">
+            <div class="glass-card" style="text-align:center;">
+                <h2>Addendum C: FHIR R4-Lite Database Model</h2>
+                <p class="subtitle" style="margin-bottom:12px;">Relational schema structure supporting patient history & encounters.</p>
+                <div style="background:rgba(15,23,42,0.8); border-radius:14px; padding:16px; overflow:auto; max-height:460px; border:1px solid rgba(255,255,255,0.1);">
+                    <pre class="mermaid">
+erDiagram
+    PATIENTS ||--o{ ENCOUNTERS : "has"
+    PATIENTS ||--o{ CONDITIONS : "has history"
+    PATIENTS ||--o{ ALLERGIES : "documented"
+    ENCOUNTERS ||--o{ OBSERVATIONS : "contains"
+
+    PATIENTS {
+        string id PK
+        string name
+        string birthDate
+        string gender
+    }
+
+    ENCOUNTERS {
+        string id PK
+        string patient_id FK
+        string status
+        string raw_transcript
+        string structured_mist
+        string image_tag
+        int esi_score
+        string esi_rationale
+        string assigned_to
+        string doctor_note
+        string suggested_code
+        string created_at
+    }
+
+    CONDITIONS {
+        string id PK
+        string patient_id FK
+        string code
+        string recorded_date
+    }
+
+    ALLERGIES {
+        string id PK
+        string patient_id FK
+        string substance
+        string reaction
+    }
+
+    OBSERVATIONS {
+        string id PK
+        string encounter_id FK
+        string type
+        string value
+    }
+                    </pre>
                 </div>
             </div>
         </div>
