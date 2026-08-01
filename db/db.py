@@ -18,13 +18,32 @@ def get_conn():
     return conn
 
 
+# Columns added after the initial schema (Phase 6 stretch features). Fresh
+# DBs get them from schema.sql; DBs from an earlier run need them added
+# in-place since `CREATE TABLE IF NOT EXISTS` won't alter an existing table.
+_ENCOUNTER_MIGRATIONS = {
+    "assigned_to": "ALTER TABLE encounters ADD COLUMN assigned_to TEXT",
+    "doctor_note": "ALTER TABLE encounters ADD COLUMN doctor_note TEXT",
+    "suggested_code": "ALTER TABLE encounters ADD COLUMN suggested_code TEXT",
+}
+
+
+def _migrate(conn):
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(encounters)").fetchall()}
+    for column, ddl in _ENCOUNTER_MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(ddl)
+
+
 def init_db():
-    """Create tables if they don't exist. Safe to call every startup."""
+    """Create tables if they don't exist, then apply any pending column
+    migrations. Safe to call every startup."""
     with open(SCHEMA_PATH) as f:
         schema = f.read()
     conn = get_conn()
     try:
         conn.executescript(schema)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
@@ -138,7 +157,8 @@ def get_active_queue():
     try:
         rows = conn.execute(
             """SELECT e.id AS encounter_id, e.patient_id, p.name AS patient_name,
-                      e.esi_score, e.esi_rationale, e.structured_mist, e.period_start
+                      e.esi_score, e.esi_rationale, e.structured_mist, e.period_start,
+                      e.assigned_to, e.doctor_note, e.suggested_code
                FROM encounters e JOIN patients p ON p.id = e.patient_id
                WHERE e.status = 'active'
                ORDER BY CASE WHEN e.esi_score IS NULL THEN 1 ELSE 0 END,
@@ -191,6 +211,32 @@ def update_encounter_esi(encounter_id, esi_score, esi_rationale):
         conn.execute(
             "UPDATE encounters SET esi_score = ?, esi_rationale = ? WHERE id = ?",
             (esi_score, esi_rationale, encounter_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def assign_staff(encounter_id, staff_name):
+    """T16 (D2, stretch): no Gemma involved, pure state tracking."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE encounters SET assigned_to = ? WHERE id = ?",
+            (staff_name, encounter_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_encounter_note(encounter_id, doctor_note, suggested_code):
+    """T17 (D3, stretch)."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE encounters SET doctor_note = ?, suggested_code = ? WHERE id = ?",
+            (doctor_note, suggested_code, encounter_id),
         )
         conn.commit()
     finally:

@@ -19,7 +19,10 @@ CREATE TABLE IF NOT EXISTS encounters (
     image_tag        TEXT,            -- B2: PaliGemma visual tag
     structured_mist  TEXT,            -- B3: JSON — Mechanism/Injury/Signs/Treatment/etc.
     esi_score        INTEGER,         -- C3: 1 (most urgent) - 5 (least urgent)
-    esi_rationale    TEXT             -- C3: Chain-of-Verification output (JSON or text)
+    esi_rationale    TEXT,            -- C3: Chain-of-Verification output (JSON or text)
+    assigned_to      TEXT,            -- D2 (stretch): staff member assigned
+    doctor_note      TEXT,            -- D3 (stretch): structured dictated note
+    suggested_code   TEXT             -- D3 (stretch): suggested ICD-10-style code
 );
 
 CREATE TABLE IF NOT EXISTS conditions (

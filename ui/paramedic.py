@@ -43,9 +43,28 @@ def refresh_patient_dropdown():
     return gr.update(choices=_patient_choices())
 
 
-def _on_patient_change(patient_choice):
+def _on_patient_select(patient_choice):
+    """Also clears the audio/transcript/photo/tag/MIST fields — without
+    this, switching patients leaves the previous patient's dictation and
+    photo tag sitting in the form, and clicking "Generate Handover" would
+    write them into the newly selected patient's encounter record.
+
+    Wired to `.select()`, not `.change()`: `_on_generate` also sets
+    `patient_dropdown`'s value programmatically (to confirm the
+    new/selected patient) after a successful generate — `.change()` fires
+    on that too and would immediately wipe the MIST grid just displayed.
+    `.select()` only fires on a genuine user pick from the dropdown."""
     is_new = patient_choice == NEW_PATIENT_VALUE
-    return gr.update(visible=is_new), gr.update(visible=is_new), gr.update(visible=is_new)
+    return (
+        gr.update(visible=is_new),  # new_name
+        gr.update(visible=is_new),  # new_birth_date
+        gr.update(visible=is_new),  # new_gender
+        None,   # audio_in
+        "",     # transcript_box
+        None,   # image_in
+        None,   # tag_label
+        "",     # mist_output
+    )
 
 
 def _on_audio(audio_path):
@@ -134,11 +153,6 @@ def paramedic_tab():
                 new_gender = gr.Dropdown(
                     choices=["female", "male", "other"], label="Gender", visible=False
                 )
-                patient_dropdown.change(
-                    _on_patient_change,
-                    inputs=patient_dropdown,
-                    outputs=[new_name, new_birth_date, new_gender],
-                )
 
                 audio_in = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Dictate observations")
                 transcript_box = gr.Textbox(label="Transcript (editable)", lines=4)
@@ -152,6 +166,12 @@ def paramedic_tab():
                 image_in.change(_on_image, inputs=image_in, outputs=tag_label)
 
                 mist_output = gr.HTML(label="MIST grid")
+
+        patient_dropdown.select(
+            _on_patient_select,
+            inputs=patient_dropdown,
+            outputs=[new_name, new_birth_date, new_gender, audio_in, transcript_box, image_in, tag_label, mist_output],
+        )
 
         generate_btn.click(
             _on_generate,
